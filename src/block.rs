@@ -1,64 +1,81 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::transaction::Transaction;
+use serde::{Deserialize, Serialize};
 
-/// Represents a block in the blockchain.
-#[derive(Debug)]
+/// 表示区块链中的一个区块
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
-    pub index: u32,            // Index of the block in the blockchain.
-    pub timestamp: u64,        // Timestamp when the block was created.
-    pub data: String,          // Data stored in the block (e.g., transaction details).
-    pub previous_hash: String, // Hash of the previous block in the chain.
-    pub hash: String,          // Current block's hash.
-    pub nonce: u64,            // Nonce used for mining the block (proof-of-work).
+    pub index: u32,                      // 区块在链中的索引
+    pub timestamp: u64,                  // 区块创建时间戳
+    pub transactions: Vec<Transaction>,  // 区块中的交易列表
+    pub previous_hash: String,           // 前一个区块的哈希
+    pub hash: String,                    // 当前区块的哈希
+    pub nonce: u64,                      // 挖矿使用的随机数（工作量证明）
 }
 
 impl Block {
-    /// Creates a new block with the given index, data, and previous block's hash.
-    pub fn new(index: u32, data: String, previous_hash: String) -> Block {
-        // Get the current time in seconds since UNIX epoch.
+    /// 创建新区块
+    pub fn new(index: u32, transactions: Vec<Transaction>, previous_hash: String) -> Block {
+        // 获取当前Unix时间戳
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
-        // Create a block with empty hash and nonce initialized to 0.
+
+        // 创建初始区块，哈希为空，nonce为0
         let mut block = Block {
             index,
             timestamp,
-            data,
+            transactions,
             previous_hash,
             hash: String::new(),
             nonce: 0,
         };
-        
-        // Calculate the block's hash based on its properties.
+
+        // 计算区块哈希
         block.hash = block.calculate_hash();
         block
     }
 
-    /// Calculates the hash of the block based on its properties.
+    /// 计算区块哈希
     pub fn calculate_hash(&self) -> String {
-        format!(
-            "{:x}",
-            md5::compute(format!(
-                "{}{}{}{}{}",
-                self.index, self.timestamp, self.data, self.previous_hash, self.nonce
-            ))
-        )
+        use sha2::{Digest, Sha256};
+
+        // 序列化交易数据
+        let tx_data = serde_json::to_string(&self.transactions).unwrap_or_default();
+
+        // 计算哈希
+        let data = format!(
+            "{}{}{}{}{}",
+            self.index, self.timestamp, tx_data, self.previous_hash, self.nonce
+        );
+
+        let mut hasher = Sha256::new();
+        hasher.update(data.as_bytes());
+        format!("{:x}", hasher.finalize())
     }
 
-    /// Mines the block by finding a hash that meets the difficulty criteria.
-    /// The difficulty is represented by the number of leading zeros in the hash.
+    /// 挖矿 - 找到满足难度要求的哈希
     pub fn mine_block(&mut self, difficulty: usize) {
-        // Target string with `difficulty` leading zeros.
+        // 目标：哈希以difficulty个0开头
         let target = "0".repeat(difficulty);
-        
-        // Increment nonce until the hash starts with the required number of zeros.
+
+        // 不断增加nonce直到找到有效哈希
         while &self.hash[..difficulty] != target {
             self.nonce += 1;
             self.hash = self.calculate_hash();
         }
-        
-        // Output the mined block's hash.
-        println!("Block mined: {}", self.hash);
+
+        println!("区块已挖出: {}", self.hash);
+    }
+
+    /// 验证区块中的所有交易
+    pub fn validate_transactions(&self) -> bool {
+        for tx in &self.transactions {
+            if !tx.verify() {
+                return false;
+            }
+        }
+        true
     }
 }

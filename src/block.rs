@@ -1,5 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::transaction::Transaction;
+use crate::merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 
 /// 表示区块链中的一个区块
@@ -11,6 +12,7 @@ pub struct Block {
     pub previous_hash: String,           // 前一个区块的哈希
     pub hash: String,                    // 当前区块的哈希
     pub nonce: u64,                      // 挖矿使用的随机数（工作量证明）
+    pub merkle_root: String,             // Merkle树根哈希
 }
 
 impl Block {
@@ -22,6 +24,11 @@ impl Block {
             .unwrap()
             .as_secs();
 
+        // 计算Merkle根
+        let tx_ids: Vec<String> = transactions.iter().map(|tx| tx.id.clone()).collect();
+        let merkle_tree = MerkleTree::new(&tx_ids);
+        let merkle_root = merkle_tree.get_root_hash();
+
         // 创建初始区块，哈希为空，nonce为0
         let mut block = Block {
             index,
@@ -30,6 +37,7 @@ impl Block {
             previous_hash,
             hash: String::new(),
             nonce: 0,
+            merkle_root,
         };
 
         // 计算区块哈希
@@ -37,22 +45,31 @@ impl Block {
         block
     }
 
-    /// 计算区块哈希
+    /// 计算区块哈希（包含Merkle根）
     pub fn calculate_hash(&self) -> String {
         use sha2::{Digest, Sha256};
 
-        // 序列化交易数据
-        let tx_data = serde_json::to_string(&self.transactions).unwrap_or_default();
-
-        // 计算哈希
+        // 计算哈希（使用Merkle根而非完整交易数据，提升效率）
         let data = format!(
             "{}{}{}{}{}",
-            self.index, self.timestamp, tx_data, self.previous_hash, self.nonce
+            self.index, self.timestamp, self.merkle_root, self.previous_hash, self.nonce
         );
 
         let mut hasher = Sha256::new();
         hasher.update(data.as_bytes());
         format!("{:x}", hasher.finalize())
+    }
+
+    /// 验证交易是否在区块中（使用Merkle证明）
+    pub fn verify_transaction_inclusion(&self, tx_id: &str, index: usize) -> bool {
+        let tx_ids: Vec<String> = self.transactions.iter().map(|tx| tx.id.clone()).collect();
+        let merkle_tree = MerkleTree::new(&tx_ids);
+
+        if let Some(proof) = merkle_tree.get_proof(tx_id) {
+            MerkleTree::verify_proof(tx_id, &proof, &self.merkle_root, index)
+        } else {
+            false
+        }
     }
 
     /// 挖矿 - 找到满足难度要求的哈希

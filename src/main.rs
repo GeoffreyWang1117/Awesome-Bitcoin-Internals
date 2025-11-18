@@ -5,6 +5,9 @@ mod wallet;         // 钱包模块
 mod utxo;           // UTXO模块
 mod persistence;    // 持久化存储模块
 mod indexer;        // 索引和批处理模块
+mod merkle;         // Merkle树模块
+mod multisig;       // 多重签名模块
+mod advanced_tx;    // 高级交易特性模块
 
 use blockchain::Blockchain;
 use wallet::Wallet;

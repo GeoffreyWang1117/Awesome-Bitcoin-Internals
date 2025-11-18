@@ -5,3 +5,6 @@ pub mod wallet;
 pub mod utxo;
 pub mod persistence;
 pub mod indexer;
+pub mod merkle;
+pub mod multisig;
+pub mod advanced_tx;

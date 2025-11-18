@@ -49,24 +49,26 @@ pub struct Transaction {
     pub inputs: Vec<TxInput>,   // 输入列表
     pub outputs: Vec<TxOutput>, // 输出列表
     pub timestamp: u64,         // 时间戳
+    pub fee: u64,               // 交易费用
 }
 
 impl Transaction {
     /// 创建新交易
-    pub fn new(inputs: Vec<TxInput>, outputs: Vec<TxOutput>, timestamp: u64) -> Self {
+    pub fn new(inputs: Vec<TxInput>, outputs: Vec<TxOutput>, timestamp: u64, fee: u64) -> Self {
         let mut tx = Transaction {
             id: String::new(),
             inputs,
             outputs,
             timestamp,
+            fee,
         };
         tx.id = tx.calculate_hash();
         tx
     }
 
-    /// 创建Coinbase交易（挖矿奖励）
-    pub fn new_coinbase(to: String, reward: u64, timestamp: u64) -> Self {
-        let tx_out = TxOutput::new(reward, to);
+    /// 创建Coinbase交易（挖矿奖励 + 交易费用）
+    pub fn new_coinbase(to: String, reward: u64, timestamp: u64, total_fees: u64) -> Self {
+        let tx_out = TxOutput::new(reward + total_fees, to);
         let tx_in = TxInput {
             txid: String::new(),
             vout: 0,
@@ -79,6 +81,7 @@ impl Transaction {
             inputs: vec![tx_in],
             outputs: vec![tx_out],
             timestamp,
+            fee: 0, // Coinbase交易没有费用
         };
         tx.id = tx.calculate_hash();
         tx
@@ -117,5 +120,30 @@ impl Transaction {
         }
 
         true
+    }
+
+    /// 计算交易大小（字节）
+    pub fn size(&self) -> usize {
+        serde_json::to_string(self).unwrap_or_default().len()
+    }
+
+    /// 计算交易费率（satoshi/byte）
+    pub fn fee_rate(&self) -> f64 {
+        let size = self.size();
+        if size == 0 {
+            return 0.0;
+        }
+        self.fee as f64 / size as f64
+    }
+
+    /// 获取交易的输入总额
+    pub fn input_sum(&self) -> u64 {
+        // 注意：这需要从UTXO集合中查询，这里只是占位
+        0
+    }
+
+    /// 获取交易的输出总额
+    pub fn output_sum(&self) -> u64 {
+        self.outputs.iter().map(|o| o.value).sum()
     }
 }

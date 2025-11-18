@@ -3,6 +3,8 @@ mod blockchain;     // 区块链模块
 mod transaction;    // 交易模块
 mod wallet;         // 钱包模块
 mod utxo;           // UTXO模块
+mod persistence;    // 持久化存储模块
+mod indexer;        // 索引和批处理模块
 
 use blockchain::Blockchain;
 use wallet::Wallet;
@@ -34,6 +36,7 @@ fn main() {
         &Wallet::from_address("genesis_address".to_string()),
         wallet_alice.address.clone(),
         100,
+        0, // 无交易费
     ) {
         Ok(tx) => {
             if blockchain.add_transaction(tx).is_ok() {
@@ -58,6 +61,7 @@ fn main() {
         &Wallet::from_address("genesis_address".to_string()),
         wallet_bob.address.clone(),
         80,
+        0, // 无交易费
     ) {
         Ok(tx) => {
             if blockchain.add_transaction(tx).is_ok() {
@@ -86,9 +90,9 @@ fn main() {
     println!("Charlie 的余额: {} BTC", charlie_balance);
     println!();
 
-    // 5. 执行转账交易 - Alice 转账给 Bob
-    println!(">>> 步骤 5: Alice 向 Bob 转账 30 BTC");
-    match blockchain.create_transaction(&wallet_alice, wallet_bob.address.clone(), 30) {
+    // 5. 执行转账交易 - Alice 转账给 Bob（带手续费）
+    println!(">>> 步骤 5: Alice 向 Bob 转账 30 BTC（手续费2）");
+    match blockchain.create_transaction(&wallet_alice, wallet_bob.address.clone(), 30, 2) {
         Ok(tx) => {
             println!("✓ 交易已创建: {}", tx.id);
             match blockchain.add_transaction(tx) {
@@ -100,9 +104,9 @@ fn main() {
     }
     println!();
 
-    // 6. Bob 转账给 Charlie
-    println!(">>> 步骤 6: Bob 向 Charlie 转账 20 BTC");
-    match blockchain.create_transaction(&wallet_bob, wallet_charlie.address.clone(), 20) {
+    // 6. Bob 转账给 Charlie（更高手续费优先打包）
+    println!(">>> 步骤 6: Bob 向 Charlie 转账 20 BTC（手续费5，优先打包）");
+    match blockchain.create_transaction(&wallet_bob, wallet_charlie.address.clone(), 20, 5) {
         Ok(tx) => {
             println!("✓ 交易已创建: {}", tx.id);
             match blockchain.add_transaction(tx) {
@@ -141,7 +145,7 @@ fn main() {
     // 9. 测试余额不足的情况（事务处理规则）
     println!(">>> 步骤 9: 测试余额不足情况");
     println!("Charlie 尝试向 Alice 转账 100 BTC（余额不足）");
-    match blockchain.create_transaction(&wallet_charlie, wallet_alice.address.clone(), 100) {
+    match blockchain.create_transaction(&wallet_charlie, wallet_alice.address.clone(), 100, 1) {
         Ok(_) => println!("✗ 应该失败，但交易成功创建了！"),
         Err(e) => println!("✓ 正确拒绝: {}", e),
     }

@@ -2,6 +2,12 @@
 
 一个完整的基于比特币（BTC）原理的银行系统演示项目，使用Rust实现，符合事务处理的ACID特性。
 
+**✨ 包含完整的Web GUI和REST API！**
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 ## 项目特性
 
 ### 核心功能
@@ -85,17 +91,46 @@ pub struct TxOutput {
 
 ### 环境要求
 
+**后端 (Rust):**
 - Rust 1.70 或更高版本
 - Cargo 包管理器
 
-### 编译和运行
+**前端 (可选):**
+- Node.js 16+
+- npm
+
+### 方式1: 命令行演示
 
 ```bash
 # 编译项目
 cargo build --release
 
-# 运行演示
-cargo run --release
+# 运行命令行演示
+cargo run --bin btc-demo --release
+```
+
+### 方式2: Web GUI + API服务器 (推荐)
+
+```bash
+# 1. 启动API服务器
+cargo run --bin btc-server --release
+
+# 2. 在新终端中，启动前端（需要Node.js）
+cd frontend
+npm install
+npm start
+```
+
+然后访问Electron应用，点击"运行演示"按钮即可看到完整演示！
+
+### 方式3: 仅API服务器
+
+```bash
+# 启动API服务器
+cargo run --bin btc-server --release
+
+# 使用curl测试API
+curl http://127.0.0.1:3000/api/blockchain/info
 ```
 
 ### 运行结果
@@ -139,7 +174,52 @@ cargo run --release
 ✓ 区块链验证通过，所有区块和交易都有效
 ```
 
-## 核心API
+## REST API文档
+
+### 端点列表
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| GET | `/api/blockchain/info` | 获取区块链信息 |
+| GET | `/api/blockchain/chain` | 获取完整区块链 |
+| POST | `/api/wallet/create` | 创建新钱包 |
+| GET | `/api/wallet/balance/:address` | 查询地址余额 |
+| POST | `/api/transaction/create` | 创建新交易 |
+| POST | `/api/mine` | 挖矿打包交易 |
+| GET | `/api/blockchain/validate` | 验证区块链 |
+
+### API示例
+
+**创建钱包:**
+```bash
+curl -X POST http://127.0.0.1:3000/api/wallet/create
+```
+
+**查询余额:**
+```bash
+curl http://127.0.0.1:3000/api/wallet/balance/your_address_here
+```
+
+**创建交易:**
+```bash
+curl -X POST http://127.0.0.1:3000/api/transaction/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from_address": "sender_address",
+    "to_address": "receiver_address",
+    "amount": 30,
+    "fee": 5
+  }'
+```
+
+**挖矿:**
+```bash
+curl -X POST http://127.0.0.1:3000/api/mine \
+  -H "Content-Type: application/json" \
+  -d '{"miner_address": "your_address"}'
+```
+
+## 核心API (Rust)
 
 ### 创建区块链
 
@@ -188,12 +268,46 @@ let balance = blockchain.get_balance(&address);
 let is_valid = blockchain.is_valid();
 ```
 
+## 高级功能
+
+### 1. 交易费用和优先级
+
+- **动态手续费**: 支持设置任意交易手续费
+- **优先级排序**: 按费率（sat/byte）自动排序交易池
+- **矿工激励**: 矿工获得区块奖励+所有交易手续费
+
+### 2. 持久化存储
+
+- **区块链保存**: JSON格式保存到文件
+- **钱包管理**: 导入/导出钱包文件
+- **配置系统**: 支持自定义难度和奖励
+
+### 3. 性能优化
+
+- **交易索引**: 快速查找交易所在区块
+- **地址索引**: 快速查询地址相关交易
+- **批量处理**: 支持批量验证交易
+
+### 4. Web界面特性
+
+- **实时更新**: 自动刷新区块链状态
+- **演示模式**: 一键运行完整演示
+- **可视化**: 直观展示区块链结构
+- **交互操作**: 图形化创建钱包、转账、挖矿
+
 ## 技术栈
 
+**后端:**
 - **Rust**: 系统编程语言
+- **Tokio**: 异步运行时
+- **Axum**: Web框架
 - **SHA2**: 哈希算法
 - **Serde**: 序列化/反序列化
-- **MD5**: 辅助哈希（用于简化演示）
+
+**前端:**
+- **Electron**: 跨平台桌面应用
+- **原生JavaScript**: 无框架依赖
+- **CSS3**: 现代样式设计
 
 ## 学习要点
 

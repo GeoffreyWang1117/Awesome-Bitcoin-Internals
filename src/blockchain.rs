@@ -2,6 +2,7 @@ use crate::block::Block;
 use crate::transaction::{Transaction, TxInput, TxOutput};
 use crate::utxo::UTXOSet;
 use crate::wallet::Wallet;
+use crate::indexer::TransactionIndexer;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 表示区块链
@@ -11,6 +12,7 @@ pub struct Blockchain {
     pub pending_transactions: Vec<Transaction>, // 待处理交易池
     pub utxo_set: UTXOSet,          // UTXO集合
     pub mining_reward: u64,         // 挖矿奖励
+    pub indexer: TransactionIndexer, // 交易索引器（加速查询）
 }
 
 impl Blockchain {
@@ -22,10 +24,12 @@ impl Blockchain {
             pending_transactions: vec![],
             utxo_set: UTXOSet::new(),
             mining_reward: 50,  // 挖矿奖励50 BTC
+            indexer: TransactionIndexer::new(), // 初始化索引器
         };
 
         // 创建创世区块
         let genesis_block = blockchain.create_genesis_block();
+        blockchain.indexer.index_block(&genesis_block); // 索引创世区块
         blockchain.chain.push(genesis_block);
 
         blockchain
@@ -43,6 +47,7 @@ impl Blockchain {
             "genesis_address".to_string(),
             100,
             timestamp,
+            0, // 创世区块没有交易费
         );
 
         // 将创世交易添加到UTXO集合
@@ -57,12 +62,15 @@ impl Blockchain {
         from_wallet: &Wallet,
         to_address: String,
         amount: u64,
+        fee: u64,
     ) -> Result<Transaction, String> {
+        let total_needed = amount + fee;
+
         // 查找可用的UTXO
-        let spendable = self.utxo_set.find_spendable_outputs(&from_wallet.address, amount);
+        let spendable = self.utxo_set.find_spendable_outputs(&from_wallet.address, total_needed);
 
         if spendable.is_none() {
-            return Err("余额不足".to_string());
+            return Err("余额不足（包括交易费）".to_string());
         }
 
         let (accumulated, utxos) = spendable.unwrap();
@@ -84,10 +92,10 @@ impl Blockchain {
         let mut outputs = Vec::new();
         outputs.push(TxOutput::new(amount, to_address));
 
-        // 如果有找零，创建找零输出
-        if accumulated > amount {
+        // 如果有找零，创建找零输出（扣除费用）
+        if accumulated > total_needed {
             outputs.push(TxOutput::new(
-                accumulated - amount,
+                accumulated - total_needed,
                 from_wallet.address.clone(),
             ));
         }
@@ -97,7 +105,7 @@ impl Blockchain {
             .unwrap()
             .as_secs();
 
-        Ok(Transaction::new(inputs, outputs, timestamp))
+        Ok(Transaction::new(inputs, outputs, timestamp, fee))
     }
 
     /// 添加交易到待处理池（事务处理）
@@ -138,22 +146,31 @@ impl Blockchain {
         Ok(())
     }
 
-    /// 挖矿 - 将待处理交易打包成区块
+    /// 挖矿 - 将待处理交易打包成区块（按费率优先排序）
     pub fn mine_pending_transactions(&mut self, miner_address: String) -> Result<(), String> {
         if self.pending_transactions.is_empty() {
             return Err("没有待处理的交易".to_string());
         }
+
+        // 按交易费率从高到低排序（加速交易）
+        self.pending_transactions.sort_by(|a, b| {
+            b.fee_rate().partial_cmp(&a.fee_rate()).unwrap()
+        });
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
-        // 创建coinbase交易（挖矿奖励）
+        // 计算总交易费
+        let total_fees: u64 = self.pending_transactions.iter().map(|tx| tx.fee).sum();
+
+        // 创建coinbase交易（挖矿奖励 + 交易费）
         let coinbase_tx = Transaction::new_coinbase(
             miner_address,
             self.mining_reward,
             timestamp,
+            total_fees,
         );
 
         // 创建新区块，包含所有待处理交易
@@ -183,6 +200,7 @@ impl Blockchain {
         }
 
         // 添加区块到链
+        self.indexer.index_block(&block); // 索引新区块
         self.chain.push(block);
 
         // 清空待处理交易池
@@ -261,6 +279,9 @@ impl Blockchain {
                 println!("  交易 #{}: {}", i, tx.id);
                 if tx.is_coinbase() {
                     println!("    类型: Coinbase（挖矿奖励）");
+                } else {
+                    println!("    交易费: {} satoshi", tx.fee);
+                    println!("    费率: {:.2} sat/byte", tx.fee_rate());
                 }
                 println!("    输入数: {}", tx.inputs.len());
                 println!("    输出数: {}", tx.outputs.len());

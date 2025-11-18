@@ -1,0 +1,19 @@
+{
+  "name": "simplebtc-gui",
+  "version": "1.0.0",
+  "description": "SimpleBTC - Bitcoin Banking System GUI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["bitcoin", "blockchain", "electron"],
+  "author": "SimpleBTC Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

@@ -1,8 +1,9 @@
 use sha2::{Digest, Sha256};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 /// 钱包结构 - 管理地址和密钥
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Wallet {
     pub address: String,        // 钱包地址（公钥哈希）
     pub private_key: String,    // 私钥（简化版本）

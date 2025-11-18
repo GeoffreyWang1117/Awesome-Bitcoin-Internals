@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleBTC - Bitcoin Banking System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="logo">
+                <h1>🪙 SimpleBTC</h1>
+                <p>Bitcoin Banking System Demo</p>
+            </div>
+            <div class="blockchain-info">
+                <div class="info-item">
+                    <span class="label">区块高度:</span>
+                    <span class="value" id="blockHeight">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">难度:</span>
+                    <span class="value" id="difficulty">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">待处理交易:</span>
+                    <span class="value" id="pendingTxs">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区 -->
+        <div class="main-content">
+            <!-- 左侧面板 - 钱包和操作 -->
+            <div class="left-panel">
+                <!-- 钱包区域 -->
+                <div class="panel">
+                    <h2>💰 钱包管理</h2>
+                    <button class="btn btn-primary" onclick="createWallet()">创建新钱包</button>
+
+                    <div class="wallet-list" id="walletList">
+                        <!-- 钱包列表动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 交易区域 -->
+                <div class="panel">
+                    <h2>💸 发起转账</h2>
+                    <form id="transferForm" onsubmit="createTransaction(event)">
+                        <div class="form-group">
+                            <label>发送地址</label>
+                            <input type="text" id="fromAddress" required placeholder="发送者地址">
+                        </div>
+                        <div class="form-group">
+                            <label>接收地址</label>
+                            <input type="text" id="toAddress" required placeholder="接收者地址">
+                        </div>
+                        <div class="form-group">
+                            <label>金额 (BTC)</label>
+                            <input type="number" id="amount" required min="1" placeholder="转账金额">
+                        </div>
+                        <div class="form-group">
+                            <label>手续费 (satoshi)</label>
+                            <input type="number" id="fee" required min="0" value="5" placeholder="交易手续费">
+                        </div>
+                        <button type="submit" class="btn btn-success">发起转账</button>
+                    </form>
+                </div>
+
+                <!-- 挖矿区域 -->
+                <div class="panel">
+                    <h2>⛏️ 挖矿</h2>
+                    <div class="form-group">
+                        <label>矿工地址</label>
+                        <input type="text" id="minerAddress" placeholder="接收挖矿奖励的地址">
+                    </div>
+                    <button class="btn btn-warning" onclick="mineBlock()">开始挖矿</button>
+                    <div id="miningStatus" class="status-message"></div>
+                </div>
+            </div>
+
+            <!-- 右侧面板 - 区块链展示 -->
+            <div class="right-panel">
+                <!-- 区块链区域 -->
+                <div class="panel">
+                    <h2>⛓️ 区块链</h2>
+                    <button class="btn btn-secondary" onclick="loadBlockchain()">刷新区块链</button>
+                    <button class="btn btn-secondary" onclick="validateBlockchain()">验证区块链</button>
+
+                    <div class="blockchain-container" id="blockchainContainer">
+                        <!-- 区块链动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer class="footer">
+            <div class="status-bar">
+                <span id="statusMessage">就绪</span>
+                <span class="api-status" id="apiStatus">🔴 API未连接</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 演示模式按钮 -->
+    <div class="demo-controls">
+        <button class="btn btn-demo" onclick="runDemo()">🎬 运行演示</button>
+        <button class="btn btn-demo" onclick="resetDemo()">🔄 重置演示</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

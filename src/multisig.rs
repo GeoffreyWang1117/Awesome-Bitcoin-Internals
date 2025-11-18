@@ -2,14 +2,53 @@ use crate::wallet::Wallet;
 use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 
-/// 多重签名地址
+/// 多重签名地址（M-of-N Multisig）
+///
+/// 多重签名是比特币的高级功能，要求M个签名才能花费N个公钥控制的资金。
+///
+/// 应用场景：
+///
+/// 1. 企业资金管理（2-of-3）：
+///    - CEO、CFO、CTO各持一个密钥
+///    - 任意两人同意即可转账
+///    - 防止单点故障和内部舞弊
+///
+/// 2. 托管服务（2-of-3）：
+///    - 买家、卖家、仲裁员各持一个密钥
+///    - 正常交易：买家+卖家签名
+///    - 争议时：买家/卖家+仲裁员签名
+///
+/// 3. 个人资产保护（2-of-3）：
+///    - 主密钥、备份密钥、第三方托管密钥
+///    - 主密钥丢失仍可恢复
+///    - 防止单一私钥被盗
+///
+/// 4. 冷热钱包结合（2-of-3）：
+///    - 热钱包（日常使用）
+///    - 冷钱包1（离线保存）
+///    - 冷钱包2（异地保存）
+///
+/// 5. 遗产继承（时间锁+多签）：
+///    - 2-of-2：本人+继承人
+///    - 1年后自动变为1-of-2
+///
+/// 技术实现（比特币）：
+/// - P2SH（Pay-to-Script-Hash）地址，以"3"开头
+/// - 锁定脚本：OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
+/// - 解锁需要提供：OP_0 signature1 signature2
+///
+/// 优势：
+/// - 提高安全性：分散密钥，降低单点风险
+/// - 灵活性：可设置不同的M和N组合
+/// - 透明性：链上可见多签地址（但不知道是谁）
+/// - 不可逆：一旦设置，规则不可更改
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiSigAddress {
-    pub address: String,
-    pub required_sigs: usize,           // 需要的签名数量（m）
-    pub total_keys: usize,              // 总密钥数量（n）
-    pub public_keys: Vec<String>,       // 所有公钥
-    pub script: String,                 // 锁定脚本（简化版）
+    pub address: String,                // 多签地址（以"3"开头）
+    pub required_sigs: usize,           // 需要的签名数量 M（例如：2-of-3中的2）
+    pub total_keys: usize,              // 总密钥数量 N（例如：2-of-3中的3）
+    pub public_keys: Vec<String>,       // 所有参与方的公钥列表
+    pub script: String,                 // 锁定脚本（简化版，实际是Script代码）
 }
 
 impl MultiSigAddress {

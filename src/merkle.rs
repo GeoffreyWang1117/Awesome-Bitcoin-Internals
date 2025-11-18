@@ -1,11 +1,32 @@
 use sha2::{Digest, Sha256};
 
 /// Merkle树节点
+///
+/// Merkle树（也称哈希树）是比特币的关键数据结构之一。
+///
+/// 节点类型：
+/// - 叶子节点：包含交易哈希，无子节点
+/// - 内部节点：包含子节点哈希的哈希，有左右子节点
+/// - 根节点：树的顶部节点，其哈希存储在区块头中
+///
+/// 构建过程（自底向上）：
+/// 1. 叶子层：每笔交易的哈希作为叶子节点
+/// 2. 上层：两两配对，哈希(左哈希 + 右哈希)作为父节点
+/// 3. 重复步骤2直到只剩一个节点（根节点）
+/// 4. 如果某层节点数为奇数，复制最后一个节点配对
+///
+/// 示例（4笔交易）：
+///         Root
+///        /    \
+///      H12    H34
+///     /  \   /  \
+///    H1  H2 H3  H4
+///    tx1 tx2 tx3 tx4
 #[derive(Debug, Clone)]
 pub struct MerkleNode {
-    pub hash: String,
-    pub left: Option<Box<MerkleNode>>,
-    pub right: Option<Box<MerkleNode>>,
+    pub hash: String,                    // 节点的哈希值
+    pub left: Option<Box<MerkleNode>>,   // 左子节点（内部节点才有）
+    pub right: Option<Box<MerkleNode>>,  // 右子节点（内部节点才有）
 }
 
 impl MerkleNode {
@@ -39,10 +60,42 @@ impl MerkleNode {
 }
 
 /// Merkle树
+///
+/// Merkle树的核心功能和优势：
+///
+/// 1. 高效验证（SPV - Simplified Payment Verification）：
+///    - 轻钱包无需下载完整区块链（约500GB）
+///    - 只需要区块头（约80字节/区块）和Merkle证明
+///    - 可以验证某笔交易是否在某个区块中
+///    - 验证复杂度：O(log n)，n是交易数量
+///
+/// 2. 数据完整性：
+///    - 任何交易的修改都会改变Merkle根
+///    - 根哈希存储在区块头中，受PoW保护
+///    - 不可能在不改变区块哈希的情况下篡改交易
+///
+/// 3. 存储优化：
+///    - 区块头只需存储32字节的Merkle根
+///    - 而不是存储所有交易的哈希列表
+///    - 减少了区块头大小，提高了传播速度
+///
+/// 4. SPV证明示例：
+///    验证tx1在区块中：
+///    - 需要：H2, H34
+///    - 计算：H12 = hash(H1 + H2)
+///    - 计算：Root = hash(H12 + H34)
+///    - 比较Root与区块头中的merkle_root
+///    - 只需3个哈希（log₂4 + 1），而不是所有4个交易
+///
+/// 实际应用：
+/// - SPV钱包（手机钱包、轻客户端）
+/// - 跨链验证
+/// - Git版本控制（类似原理）
+/// - IPFS内容寻址
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
-    pub root: Option<MerkleNode>,
-    pub leaves: Vec<String>,
+    pub root: Option<MerkleNode>,  // 树根节点
+    pub leaves: Vec<String>,       // 叶子节点数据（交易哈希列表）
 }
 
 impl MerkleTree {
@@ -150,7 +203,41 @@ impl MerkleTree {
         Some(proof)
     }
 
-    /// 验证Merkle证明
+    /// 验证Merkle证明（SPV核心功能）
+    ///
+    /// 这是SPV（轻量级支付验证）的核心函数。
+    ///
+    /// 验证过程：
+    /// 1. 从交易哈希开始（叶子节点）
+    /// 2. 使用证明中的兄弟哈希，逐层向上计算
+    /// 3. 根据节点索引确定左右顺序
+    /// 4. 最终计算出的根哈希应该与区块头中的merkle_root匹配
+    ///
+    /// 示例（验证tx1，index=0）：
+    /// - 已知：tx1_hash, 证明=[H2, H34]
+    /// - 步骤1：H12 = hash(tx1_hash + H2)  // index=0，tx1在左边
+    /// - 步骤2：Root = hash(H12 + H34)     // index=0，H12在左边
+    /// - 验证：计算的Root == 区块的merkle_root
+    ///
+    /// 为什么安全：
+    /// - 攻击者无法伪造证明，因为：
+    ///   1. 需要找到哈希碰撞（SHA256碰撞，计算上不可行）
+    ///   2. 或者需要重新挖矿（改变merkle_root会改变区块哈希）
+    /// - 轻客户端可以信任POW最长的链
+    ///
+    /// 效率对比（验证1笔交易）：
+    /// - 全节点：下载整个区块（1-2MB），验证所有交易
+    /// - SPV：下载证明（几KB），O(log n)次哈希计算
+    ///
+    /// # 参数
+    /// * `tx_hash` - 要验证的交易哈希
+    /// * `proof` - Merkle证明（兄弟节点哈希列表）
+    /// * `root_hash` - 区块头中的Merkle根哈希
+    /// * `index` - 交易在区块中的索引位置
+    ///
+    /// # 返回值
+    /// true - 交易确实在该区块中
+    /// false - 交易不在该区块中，或证明无效
     pub fn verify_proof(
         tx_hash: &str,
         proof: &[String],

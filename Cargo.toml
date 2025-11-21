@@ -18,6 +18,13 @@ sha2 = "0.10"
 hex = "0.4"
 rand = "0.8"
 
+# 密码学（真实的比特币签名）
+secp256k1 = { version = "0.29", features = ["rand", "serde"] }
+bitcoin_hashes = "0.14"
+bech32 = "0.11"
+ripemd = "0.1"
+bs58 = "0.5"
+
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -31,6 +38,12 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
+# 存储（高性能数据库）
+rocksdb = "0.22"
+
+# 并行计算
+rayon = "1.10"
+
 # 异步运行时和Web框架
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"
@@ -42,6 +55,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 criterion = "0.5"
 proptest = "1.0"
 tokio-test = "0.4"
+tempfile = "3.13"
 
 [lib]
 name = "bitcoin_simulation"

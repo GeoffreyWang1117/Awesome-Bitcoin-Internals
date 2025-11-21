@@ -42,6 +42,7 @@ pub mod blockchain;
 pub mod transaction;
 pub mod wallet;
 pub mod utxo;
+pub mod crypto;  // 真实的ECDSA密码学
 
 // 高级特性
 pub mod merkle;

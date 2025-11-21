@@ -166,6 +166,7 @@ impl MerkleTree {
             leaves.push(leaves.last().unwrap().clone());
         }
 
+        let leaves_len = leaves.len(); // 保存长度用于后续比较
         let mut current_level = leaves;
 
         while current_level.len() > 1 {
@@ -177,7 +178,13 @@ impl MerkleTree {
             };
 
             if sibling_index < current_level.len() {
-                proof.push(current_level[sibling_index].clone());
+                // 如果当前层是叶子节点（原始交易），需要先哈希
+                let sibling_hash = if current_level.len() == leaves_len {
+                    MerkleNode::hash_data(&current_level[sibling_index])
+                } else {
+                    current_level[sibling_index].clone()
+                };
+                proof.push(sibling_hash);
             }
 
             // 计算下一层

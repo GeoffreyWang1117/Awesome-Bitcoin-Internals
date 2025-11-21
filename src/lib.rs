@@ -57,6 +57,7 @@ pub mod config;
 pub mod persistence;
 pub mod indexer;
 pub mod storage;  // RocksDB高性能存储
+pub mod security; // 安全验证
 
 // 重新导出常用类型
 pub use error::{BitcoinError, Result};

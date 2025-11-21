@@ -88,6 +88,60 @@ pub enum BitcoinError {
         vout: usize,
     },
 
+    /// 双花（通用）
+    #[error("双花攻击: UTXO {txid}:{vout} 被重复花费")]
+    DoubleSpend {
+        /// 交易ID
+        txid: String,
+        /// 输出索引
+        vout: usize,
+    },
+
+    /// 交易费用不足
+    #[error("交易费用不足: 提供 {provided} satoshi, 需要 {required} satoshi")]
+    InsufficientFee {
+        /// 提供的费用
+        provided: u64,
+        /// 需要的费用
+        required: u64,
+    },
+
+    /// 输入数量过多
+    #[error("输入数量过多: {count} > 最大 {max}")]
+    TooManyInputs {
+        /// 实际数量
+        count: usize,
+        /// 最大数量
+        max: usize,
+    },
+
+    /// 输出数量过多
+    #[error("输出数量过多: {count} > 最大 {max}")]
+    TooManyOutputs {
+        /// 实际数量
+        count: usize,
+        /// 最大数量
+        max: usize,
+    },
+
+    /// 粉尘输出
+    #[error("粉尘输出: 输出#{output_index} 金额 {value} satoshi < 最小 {min_value} satoshi")]
+    DustOutput {
+        /// 输出金额
+        value: u64,
+        /// 最小金额
+        min_value: u64,
+        /// 输出索引
+        output_index: usize,
+    },
+
+    /// 无效金额
+    #[error("无效金额: {reason}")]
+    InvalidAmount {
+        /// 错误原因
+        reason: String,
+    },
+
     // ========== 区块和挖矿相关错误 ==========
     /// 挖矿失败
     #[error("挖矿失败: {reason}")]

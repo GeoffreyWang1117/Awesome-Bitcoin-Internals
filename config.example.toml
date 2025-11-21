@@ -1,0 +1,103 @@
+# SimpleBTC配置文件示例
+# 复制此文件为 config.toml 并根据需要修改
+
+[blockchain]
+# 挖矿难度（1-10，数字越大越难）
+difficulty = 4
+
+# 区块奖励（satoshi）
+mining_reward = 5000
+
+# 最小交易费（satoshi）
+min_transaction_fee = 1
+
+# 区块最大交易数
+max_transactions_per_block = 100
+
+# 区块最大大小（bytes）
+max_block_size = 1000000
+
+# 最小费率（satoshi/byte）
+min_fee_rate = 1
+
+# 启用RBF（Replace-By-Fee）
+enable_rbf = true
+
+# 启用TimeLock
+enable_timelock = true
+
+[network]
+# P2P监听端口
+p2p_port = 8333
+
+# 最大连接节点数
+max_peers = 8
+
+# 连接超时（秒）
+connection_timeout = 30
+
+# 启用节点发现
+enable_discovery = true
+
+# 引导节点列表（启动时连接的节点）
+bootstrap_nodes = [
+    # "127.0.0.1:8333",
+    # "192.168.1.100:8333",
+]
+
+[storage]
+# 数据目录
+data_dir = "./data"
+
+# 区块链数据文件名
+blockchain_file = "blockchain.json"
+
+# 钱包目录
+wallet_dir = "wallets"
+
+# 启用自动备份
+enable_auto_backup = true
+
+# 备份间隔（秒）
+backup_interval = 3600
+
+[api]
+# API监听地址
+host = "127.0.0.1"
+
+# API监听端口
+port = 3000
+
+# 启用CORS
+enable_cors = true
+
+# 允许的源（空表示允许所有）
+allowed_origins = [
+    # "http://localhost:5173",
+    # "https://myapp.com",
+]
+
+# 请求超时（秒）
+request_timeout = 30
+
+# 启用速率限制
+enable_rate_limit = false
+
+# 速率限制（请求/分钟）
+rate_limit = 100
+
+[logging]
+# 日志级别: trace, debug, info, warn, error
+level = "info"
+
+# 日志格式: pretty, compact, json
+format = "pretty"
+
+# 显示代码位置（文件名和行号）
+show_location = true
+
+# 显示线程ID
+show_thread_id = false
+
+# 日志文件路径（留空表示只输出到控制台）
+# file_path = "./logs/simplebtc.log"

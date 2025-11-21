@@ -43,6 +43,7 @@ rocksdb = "0.22"
 
 # 并行计算
 rayon = "1.10"
+num_cpus = "1.16"
 
 # 异步运行时和Web框架
 tokio = { version = "1", features = ["full"] }

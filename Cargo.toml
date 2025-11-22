@@ -45,6 +45,9 @@ rocksdb = "0.22"
 rayon = "1.10"
 num_cpus = "1.16"
 
+# 数据结构
+ordered-float = "4.5"
+
 # 异步运行时和Web框架
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"

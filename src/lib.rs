@@ -49,6 +49,7 @@ pub mod merkle;
 pub mod multisig;
 pub mod advanced_tx;
 pub mod parallel_mining;  // 多线程并行挖矿
+pub mod mempool;          // 内存池
 
 // 基础设施
 pub mod error;

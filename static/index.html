@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SimpleBTC - Bitcoin Blockchain Explorer</title>
+<style>
+/* === Reset & Base === */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
+  --fg:#e6edf3;--fg2:#8b949e;--fg3:#484f58;
+  --orange:#f7931a;--orange2:#e8850f;--green:#3fb950;--red:#f85149;
+  --blue:#58a6ff;--cyan:#56d4dd;--purple:#bc8cff;
+  --radius:8px;--shadow:0 2px 8px rgba(0,0,0,.3);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--fg);line-height:1.5;min-height:100vh}
+a{color:var(--blue);text-decoration:none}
+
+/* === Layout === */
+.app{max-width:1280px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 24px;background:var(--bg2);border:1px solid var(--bg4);
+  border-radius:var(--radius);margin-bottom:16px}
+header h1{font-size:22px;color:var(--orange);font-weight:700}
+header h1 span{color:var(--fg);font-weight:400}
+.stats{display:flex;gap:24px}
+.stat{text-align:center}
+.stat-val{font-size:22px;font-weight:700;color:var(--cyan)}
+.stat-lbl{font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px}
+
+.grid{display:grid;grid-template-columns:380px 1fr;gap:16px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+/* === Panels === */
+.panel{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--radius);
+  padding:20px;margin-bottom:16px}
+.panel-title{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;
+  align-items:center;gap:8px;color:var(--fg)}
+.panel-title .icon{font-size:18px}
+
+/* === Buttons === */
+.btn{padding:8px 16px;border:none;border-radius:6px;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-primary{background:var(--orange);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-blue{background:var(--blue);color:#000}
+.btn-outline{background:transparent;border:1px solid var(--bg4);color:var(--fg2)}
+.btn-outline:hover{border-color:var(--fg3);color:var(--fg)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-block{width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+
+/* === Forms === */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:var(--fg2);margin-bottom:4px;font-weight:500}
+.field input,.field select{width:100%;padding:8px 12px;background:var(--bg);
+  border:1px solid var(--bg4);border-radius:6px;color:var(--fg);font-size:13px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--orange)}
+
+/* === Wallet Cards === */
+.wallet-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;margin-top:10px}
+.wallet-card{background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--bg4);
+  cursor:pointer;transition:border-color .15s}
+.wallet-card:hover{border-color:var(--orange)}
+.wallet-card.active{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
+.wallet-addr{font-family:'SF Mono',Consolas,monospace;font-size:11px;color:var(--cyan);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wallet-bal{font-size:16px;font-weight:700;color:var(--orange);margin-top:4px}
+.wallet-label{font-size:11px;color:var(--fg2)}
+
+/* === Blockchain === */
+.chain{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 160px);overflow-y:auto;padding-right:4px}
+.block-card{background:var(--bg);border:1px solid var(--bg4);border-radius:var(--radius);
+  overflow:hidden;transition:border-color .15s}
+.block-card:hover{border-color:var(--fg3)}
+.block-head{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--bg4)}
+.block-idx{font-weight:700;color:var(--orange);font-size:15px}
+.block-meta{font-size:11px;color:var(--fg2)}
+.block-body{padding:12px 16px}
+.block-hash{font-family:'SF Mono',Consolas,monospace;font-size:10px;color:var(--fg3);
+  word-break:break-all;margin-bottom:8px}
+.block-hash span{color:var(--fg2)}
+
+.tx-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.tx-item{background:var(--bg2);padding:8px 12px;border-radius:4px;font-size:12px}
+.tx-id{font-family:'SF Mono',Consolas,monospace;color:var(--purple);font-size:10px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-info{color:var(--fg2);margin-top:2px;display:flex;gap:12px}
+.tx-info .tag{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.tag-coinbase{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-transfer{background:rgba(88,166,255,.15);color:var(--blue)}
+.tag-fee{background:rgba(247,147,26,.15);color:var(--orange)}
+
+/* === Toast === */
+.toast-container{position:fixed;top:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:6px;font-size:13px;color:#fff;animation:slideIn .3s;
+  box-shadow:var(--shadow);max-width:360px}
+.toast-success{background:#238636}
+.toast-error{background:#da3633}
+.toast-info{background:#1f6feb}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* === Status bar === */
+.status-bar{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 16px;background:var(--bg2);border:1px solid var(--bg4);
+  border-radius:var(--radius);margin-top:16px;font-size:12px;color:var(--fg2)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-dot.on{background:var(--green)}
+.status-dot.off{background:var(--red)}
+
+/* === Scrollbar === */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--fg3)}
+
+/* === Loading spinner === */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* === Demo banner === */
+.demo-banner{background:linear-gradient(135deg,#f7931a 0%,#e8850f 100%);color:#fff;
+  text-align:center;padding:10px;border-radius:var(--radius);margin-bottom:16px;
+  font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s}
+.demo-banner:hover{filter:brightness(1.1)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header>
+    <div>
+      <h1>SimpleBTC <span>Blockchain Explorer</span></h1>
+      <div style="font-size:12px;color:var(--fg2);margin-top:2px">Educational Bitcoin Implementation in Rust</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="sHeight">-</div><div class="stat-lbl">Block Height</div></div>
+      <div class="stat"><div class="stat-val" id="sDiff">-</div><div class="stat-lbl">Difficulty</div></div>
+      <div class="stat"><div class="stat-val" id="sPending">-</div><div class="stat-lbl">Pending Txs</div></div>
+      <div class="stat"><div class="stat-val" id="sReward">-</div><div class="stat-lbl">Block Reward</div></div>
+    </div>
+  </header>
+
+  <!-- Demo Banner -->
+  <div class="demo-banner" onclick="runDemo()" id="demoBanner">
+    Click here to run a full demo: Create wallets, transfer BTC, mine blocks
+  </div>
+
+  <div class="grid">
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <!-- Wallets -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x1F4B0;</span> Wallets</div>
+        <button class="btn btn-primary btn-block" onclick="createWallet()">+ Create New Wallet</button>
+        <div class="wallet-list" id="walletList"></div>
+      </div>
+
+      <!-- Transfer -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x1F4B8;</span> Send Transaction</div>
+        <form id="txForm" onsubmit="sendTransaction(event)">
+          <div class="field">
+            <label>From Address</label>
+            <select id="txFrom"><option value="">Select a wallet...</option></select>
+          </div>
+          <div class="field">
+            <label>To Address</label>
+            <select id="txTo"><option value="">Select a recipient...</option></select>
+          </div>
+          <div class="field">
+            <label>Amount (BTC)</label>
+            <input type="number" id="txAmount" min="1" placeholder="e.g. 50" required>
+          </div>
+          <div class="field">
+            <label>Fee (satoshi)</label>
+            <input type="number" id="txFee" min="0" value="5" required>
+          </div>
+          <button class="btn btn-green btn-block" type="submit">Send Transaction</button>
+        </form>
+      </div>
+
+      <!-- Mining -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x26CF;&#xFE0F;</span> Mining</div>
+        <div class="field">
+          <label>Miner Address (receives reward)</label>
+          <select id="mineAddr"><option value="">Select a wallet...</option></select>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="mineBlock()" id="mineBtn">Mine Block</button>
+      </div>
+
+      <!-- Actions -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x2699;&#xFE0F;</span> Tools</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="validateChain()">Validate Chain</button>
+          <button class="btn btn-outline btn-sm" onclick="refreshAll()">Refresh All</button>
+          <button class="btn btn-outline btn-sm" onclick="runDemo()">Run Demo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content - Blockchain -->
+    <div class="main">
+      <div class="panel" style="padding:16px">
+        <div class="panel-title" style="margin-bottom:12px">
+          <span class="icon">&#x26D3;&#xFE0F;</span> Blockchain
+          <span style="margin-left:auto;font-size:12px;color:var(--fg2)" id="chainCount"></span>
+        </div>
+        <div class="chain" id="chainView"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div><span class="status-dot" id="statusDot"></span><span id="statusText">Connecting...</span></div>
+    <div>SimpleBTC v1.0 &mdash; <a href="https://github.com/GeoffreyWang1117/SimpleBTC" target="_blank">GitHub</a></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API = window.location.origin + '/api';
+let wallets = [];
+let walletNames = {};
+let nameCounter = 0;
+const NAMES = ['Alice','Bob','Charlie','Dave','Eve','Frank','Grace','Heidi'];
+
+// === Toast notifications ===
+function toast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+// === API helpers ===
+async function api(path, opts) {
+  const res = await fetch(API + path, opts);
+  return res.json();
+}
+async function apiPost(path, body) {
+  return api(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+}
+
+// === Status & Info ===
+async function checkConnection() {
+  try {
+    const res = await fetch(window.location.origin + '/');
+    if (res.ok) {
+      document.getElementById('statusDot').className = 'status-dot on';
+      document.getElementById('statusText').textContent = 'Connected to SimpleBTC API';
+      return true;
+    }
+  } catch(e) {}
+  document.getElementById('statusDot').className = 'status-dot off';
+  document.getElementById('statusText').textContent = 'Disconnected - is the server running?';
+  return false;
+}
+
+async function loadInfo() {
+  try {
+    const d = await api('/blockchain/info');
+    if (d.success) {
+      document.getElementById('sHeight').textContent = d.data.height;
+      document.getElementById('sDiff').textContent = d.data.difficulty;
+      document.getElementById('sPending').textContent = d.data.pending_transactions;
+      document.getElementById('sReward').textContent = d.data.mining_reward;
+    }
+  } catch(e) {}
+}
+
+// === Wallets ===
+function getWalletName(addr) {
+  if (!walletNames[addr]) {
+    walletNames[addr] = NAMES[nameCounter % NAMES.length];
+    nameCounter++;
+  }
+  return walletNames[addr];
+}
+
+async function createWallet() {
+  try {
+    const d = await apiPost('/wallet/create', {});
+    if (d.success) {
+      wallets.push(d.data);
+      const name = getWalletName(d.data.address);
+      toast('Wallet created: ' + name + ' (' + d.data.address.slice(0,12) + '...)', 'success');
+      await renderWallets();
+    }
+  } catch(e) { toast('Failed to create wallet', 'error'); }
+}
+
+async function renderWallets() {
+  const list = document.getElementById('walletList');
+  list.innerHTML = '';
+  const fromSel = document.getElementById('txFrom');
+  const toSel = document.getElementById('txTo');
+  const mineSel = document.getElementById('mineAddr');
+  const prevFrom = fromSel.value;
+  const prevTo = toSel.value;
+  const prevMine = mineSel.value;
+
+  fromSel.innerHTML = '<option value="">Select a wallet...</option>';
+  toSel.innerHTML = '<option value="">Select a recipient...</option>';
+  mineSel.innerHTML = '<option value="">Select a wallet...</option>';
+
+  for (const w of wallets) {
+    const bal = await getBalance(w.address);
+    const name = getWalletName(w.address);
+    const short = w.address.slice(0,16) + '...' + w.address.slice(-8);
+
+    const card = document.createElement('div');
+    card.className = 'wallet-card';
+    card.innerHTML = '<div class="wallet-label">' + name + '</div>' +
+      '<div class="wallet-addr" title="' + w.address + '">' + short + '</div>' +
+      '<div class="wallet-bal">' + bal + ' BTC</div>';
+    card.onclick = () => { fromSel.value = w.address; };
+    list.appendChild(card);
+
+    const opt = (sel,val) => { const o=document.createElement('option'); o.value=val; o.textContent=name+' ('+val.slice(0,12)+'... | '+bal+' BTC)'; sel.appendChild(o); };
+    opt(fromSel, w.address);
+    opt(toSel, w.address);
+    opt(mineSel, w.address);
+  }
+
+  if (prevFrom) fromSel.value = prevFrom;
+  if (prevTo) toSel.value = prevTo;
+  if (prevMine) mineSel.value = prevMine;
+}
+
+async function getBalance(addr) {
+  try {
+    const d = await api('/wallet/balance/' + addr);
+    return d.success ? d.data.balance : 0;
+  } catch(e) { return 0; }
+}
+
+// === Transactions ===
+async function sendTransaction(e) {
+  e.preventDefault();
+  const from = document.getElementById('txFrom').value;
+  const to = document.getElementById('txTo').value;
+  const amount = parseInt(document.getElementById('txAmount').value);
+  const fee = parseInt(document.getElementById('txFee').value);
+
+  if (!from || !to) { toast('Please select sender and recipient', 'error'); return; }
+  if (from === to) { toast('Sender and recipient must differ', 'error'); return; }
+
+  try {
+    const d = await apiPost('/transaction/create', { from_address:from, to_address:to, amount, fee });
+    if (d.success) {
+      toast('Transaction created! Pending mining confirmation.', 'success');
+      await loadInfo();
+    } else {
+      toast('Transaction failed: ' + d.error, 'error');
+    }
+  } catch(e) { toast('Transaction failed: ' + e.message, 'error'); }
+}
+
+// === Mining ===
+async function mineBlock() {
+  const addr = document.getElementById('mineAddr').value;
+  if (!addr) { toast('Please select a miner wallet', 'error'); return; }
+
+  const btn = document.getElementById('mineBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Mining...';
+
+  try {
+    const d = await apiPost('/mine', { miner_address: addr });
+    if (d.success) {
+      toast('Block mined successfully!', 'success');
+      await refreshAll();
+    } else {
+      toast('Mining failed: ' + d.error, 'error');
+    }
+  } catch(e) { toast('Mining failed: ' + e.message, 'error'); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Mine Block';
+  }
+}
+
+// === Blockchain View ===
+async function loadChain() {
+  try {
+    const d = await api('/blockchain/chain');
+    if (d.success) renderChain(d.data);
+  } catch(e) {}
+}
+
+function renderChain(chain) {
+  const view = document.getElementById('chainView');
+  document.getElementById('chainCount').textContent = chain.length + ' blocks';
+  view.innerHTML = '';
+
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const b = chain[i];
+    const time = new Date(b.timestamp * 1000).toLocaleString();
+    const txHtml = b.transactions.map(tx => {
+      const isCoinbase = tx.inputs.length === 0 || (tx.inputs.length === 1 && tx.inputs[0].txid === '');
+      const totalOut = tx.outputs.reduce((s,o) => s + o.value, 0);
+      const tagClass = isCoinbase ? 'tag-coinbase' : 'tag-transfer';
+      const tagText = isCoinbase ? 'Coinbase' : 'Transfer';
+      return '<div class="tx-item">' +
+        '<div class="tx-id" title="' + tx.id + '">' + tx.id.slice(0,48) + '...</div>' +
+        '<div class="tx-info">' +
+        '<span class="tag ' + tagClass + '">' + tagText + '</span>' +
+        (tx.fee > 0 ? '<span class="tag tag-fee">Fee: ' + tx.fee + '</span>' : '') +
+        '<span>Value: ' + totalOut + ' BTC</span>' +
+        '</div></div>';
+    }).join('');
+
+    const card = document.createElement('div');
+    card.className = 'block-card';
+    card.innerHTML =
+      '<div class="block-head">' +
+        '<div class="block-idx">Block #' + b.index + '</div>' +
+        '<div class="block-meta">' + time + ' &middot; Nonce: ' + b.nonce + ' &middot; ' + b.transactions.length + ' tx</div>' +
+      '</div>' +
+      '<div class="block-body">' +
+        '<div class="block-hash"><span>Hash:</span> ' + b.hash + '</div>' +
+        '<div class="block-hash"><span>Prev:</span> ' + b.previous_hash + '</div>' +
+        (b.merkle_root ? '<div class="block-hash"><span>Merkle:</span> ' + b.merkle_root + '</div>' : '') +
+        '<div class="tx-list">' + txHtml + '</div>' +
+      '</div>';
+    view.appendChild(card);
+  }
+}
+
+// === Validate ===
+async function validateChain() {
+  try {
+    const d = await api('/blockchain/validate');
+    if (d.success) toast('Blockchain is valid!', 'success');
+    else toast('Blockchain validation failed!', 'error');
+  } catch(e) { toast('Validation error: ' + e.message, 'error'); }
+}
+
+// === Refresh ===
+async function refreshAll() {
+  await loadInfo();
+  await renderWallets();
+  await loadChain();
+}
+
+// === Demo ===
+async function runDemo() {
+  const banner = document.getElementById('demoBanner');
+  banner.textContent = 'Running demo...';
+  banner.style.pointerEvents = 'none';
+
+  try {
+    toast('Demo: Creating wallets...', 'info');
+
+    // Create 3 wallets
+    for (let i = 0; i < 3; i++) await createWallet();
+    await sleep(300);
+
+    const alice = wallets[wallets.length-3].address;
+    const bob = wallets[wallets.length-2].address;
+    const charlie = wallets[wallets.length-1].address;
+
+    // Fund Alice via genesis + mining
+    toast('Demo: Funding Alice via genesis...', 'info');
+    await apiPost('/transaction/create', { from_address:'genesis_address', to_address:alice, amount:100, fee:0 });
+    await loadInfo();
+    await sleep(300);
+
+    toast('Demo: Mining block to confirm funding...', 'info');
+    await apiPost('/mine', { miner_address: alice });
+    await refreshAll();
+    await sleep(500);
+
+    // Fund Bob
+    toast('Demo: Funding Bob via genesis...', 'info');
+    await apiPost('/transaction/create', { from_address:'genesis_address', to_address:bob, amount:80, fee:0 });
+    await apiPost('/mine', { miner_address: bob });
+    await refreshAll();
+    await sleep(500);
+
+    // Alice -> Bob 30 BTC
+    toast('Demo: Alice sends 30 BTC to Bob (fee: 2)...', 'info');
+    await apiPost('/transaction/create', { from_address:alice, to_address:bob, amount:30, fee:2 });
+    await loadInfo();
+    await sleep(300);
+
+    // Bob -> Charlie 20 BTC
+    toast('Demo: Bob sends 20 BTC to Charlie (fee: 5)...', 'info');
+    await apiPost('/transaction/create', { from_address:bob, to_address:charlie, amount:20, fee:5 });
+    await loadInfo();
+    await sleep(300);
+
+    // Mine to confirm
+    toast('Demo: Mining block to confirm transfers...', 'info');
+    await apiPost('/mine', { miner_address: alice });
+    await refreshAll();
+    await sleep(300);
+
+    toast('Demo complete! Explore the blockchain below.', 'success');
+    banner.textContent = 'Demo completed! Click to run again.';
+  } catch(e) {
+    toast('Demo error: ' + e.message, 'error');
+    banner.textContent = 'Demo failed. Click to retry.';
+  }
+  banner.style.pointerEvents = 'auto';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// === Init ===
+(async function init() {
+  const connected = await checkConnection();
+  if (connected) {
+    await loadInfo();
+    await loadChain();
+  }
+  setInterval(loadInfo, 5000);
+})();
+</script>
+</body>
+</html>

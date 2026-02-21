@@ -211,40 +211,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitcoin_simulation"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "bech32",
- "bitcoin_hashes",
- "bs58",
- "criterion",
- "hex",
- "md5",
- "num_cpus",
- "ordered-float",
- "proptest",
- "rand 0.8.5",
- "rayon",
- "ripemd",
- "rocksdb",
- "secp256k1",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-test",
- "toml",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1445,6 +1411,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2a4719bff48cee6b39d12c020eeb490953ad2443b7055bd0b21fca26bd8c28b"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "simplebtc"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bech32",
+ "bitcoin_hashes",
+ "bs58",
+ "criterion",
+ "hex",
+ "md5",
+ "num_cpus",
+ "ordered-float",
+ "proptest",
+ "rand 0.8.5",
+ "rayon",
+ "ripemd",
+ "rocksdb",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "toml",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

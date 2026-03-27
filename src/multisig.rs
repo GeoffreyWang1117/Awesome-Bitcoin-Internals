@@ -1,6 +1,7 @@
 use crate::wallet::Wallet;
-use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 
 /// 多重签名地址（M-of-N Multisig）
 ///
@@ -44,11 +45,11 @@ use serde::{Deserialize, Serialize};
 /// - 不可逆：一旦设置，规则不可更改
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiSigAddress {
-    pub address: String,                // 多签地址（以"3"开头）
-    pub required_sigs: usize,           // 需要的签名数量 M（例如：2-of-3中的2）
-    pub total_keys: usize,              // 总密钥数量 N（例如：2-of-3中的3）
-    pub public_keys: Vec<String>,       // 所有参与方的公钥列表
-    pub script: String,                 // 锁定脚本（简化版，实际是Script代码）
+    pub address: String,          // 多签地址（以"3"开头）
+    pub required_sigs: usize,     // 需要的签名数量 M（例如：2-of-3中的2）
+    pub total_keys: usize,        // 总密钥数量 N（例如：2-of-3中的3）
+    pub public_keys: Vec<String>, // 所有参与方的公钥列表
+    pub script: String,           // 锁定脚本（简化版，实际是Script代码）
 }
 
 impl MultiSigAddress {
@@ -85,21 +86,35 @@ impl MultiSigAddress {
         })
     }
 
-    /// 验证签名数量是否满足要求
-    pub fn verify_signatures(&self, signatures: &[String]) -> bool {
+    /// 验证签名数量和有效性
+    ///
+    /// 使用ECDSA验证每个签名是否由多签地址中的某个公钥产生。
+    ///
+    /// # 参数
+    /// * `signatures` - 签名列表（十六进制DER编码）
+    /// * `data` - 被签名的原始数据
+    pub fn verify_signatures_with_data(&self, signatures: &[String], data: &str) -> bool {
         if signatures.len() < self.required_sigs {
             return false;
         }
 
-        // 简化验证：检查签名是否来自已知公钥
         let mut valid_count = 0;
         for sig in signatures {
-            if !sig.is_empty() {
-                valid_count += 1;
+            // 尝试用每个公钥验证签名
+            for pubkey in &self.public_keys {
+                if Wallet::verify_signature(pubkey, data, sig) {
+                    valid_count += 1;
+                    break; // 一个签名只能匹配一个公钥
+                }
             }
         }
 
         valid_count >= self.required_sigs
+    }
+
+    /// 验证签名数量是否满足要求（兼容接口）
+    pub fn verify_signatures(&self, signatures: &[String]) -> bool {
+        signatures.len() >= self.required_sigs
     }
 }
 
@@ -107,6 +122,8 @@ impl MultiSigAddress {
 pub struct MultiSigTxBuilder {
     pub multisig_address: MultiSigAddress,
     pub signatures: Vec<String>,
+    /// 跟踪已签名的公钥，防止重复签名
+    signed_keys: HashMap<String, bool>,
 }
 
 impl MultiSigTxBuilder {
@@ -115,19 +132,30 @@ impl MultiSigTxBuilder {
         MultiSigTxBuilder {
             multisig_address,
             signatures: Vec::new(),
+            signed_keys: HashMap::new(),
         }
     }
 
-    /// 添加签名
+    /// 添加ECDSA签名
     pub fn add_signature(&mut self, wallet: &Wallet, data: &str) -> Result<(), String> {
         // 验证钱包公钥是否在多签地址中
-        if !self.multisig_address.public_keys.contains(&wallet.public_key) {
+        if !self
+            .multisig_address
+            .public_keys
+            .contains(&wallet.public_key)
+        {
             return Err("此钱包不在多签地址中".to_string());
         }
 
-        // 创建签名
+        // 防止同一公钥重复签名
+        if self.signed_keys.contains_key(&wallet.public_key) {
+            return Err("此钱包已签名".to_string());
+        }
+
+        // 创建ECDSA签名
         let signature = wallet.sign(data);
         self.signatures.push(signature);
+        self.signed_keys.insert(wallet.public_key.clone(), true);
 
         Ok(())
     }
@@ -145,9 +173,9 @@ impl MultiSigTxBuilder {
 
 /// 常用多签类型
 pub enum MultiSigType {
-    TwoOfTwo,       // 2-of-2
-    TwoOfThree,     // 2-of-3 (最常用)
-    ThreeOfFive,    // 3-of-5
+    TwoOfTwo,    // 2-of-2
+    TwoOfThree,  // 2-of-3 (最常用)
+    ThreeOfFive, // 3-of-5
 }
 
 impl MultiSigType {

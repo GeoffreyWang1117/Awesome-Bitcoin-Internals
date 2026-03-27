@@ -225,19 +225,17 @@ impl Script {
         let result = engine.stack.last().unwrap();
         Ok(result == "1" || result == "true")
     }
-
-    /// 序列化脚本为字符串
-    pub fn to_string(&self) -> String {
-        self.ops.iter()
-            .map(|op| op.to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 }
 
 impl fmt::Display for Script {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        let s = self
+            .ops
+            .iter()
+            .map(|op| op.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        write!(f, "{}", s)
     }
 }
 
@@ -383,7 +381,8 @@ impl ScriptEngine {
                     }
                 }
 
-                self.stack.push(if valid_count >= m { "1" } else { "0" }.to_string());
+                self.stack
+                    .push(if valid_count >= m { "1" } else { "0" }.to_string());
             }
 
             OpCode::OpAdd => {
@@ -422,11 +421,11 @@ impl ScriptEngine {
 
     /// 从栈中弹出元素
     fn pop(&mut self) -> Result<String> {
-        self.stack.pop().ok_or_else(|| {
-            BitcoinError::InvalidTransaction {
+        self.stack
+            .pop()
+            .ok_or_else(|| BitcoinError::InvalidTransaction {
                 reason: "脚本栈为空".to_string(),
-            }
-        })
+            })
     }
 
     /// SHA256哈希
@@ -440,7 +439,7 @@ impl ScriptEngine {
     fn hash160(&self, data: &str) -> String {
         // 简化版：只做SHA256
         // 实际应该: RIPEMD160(SHA256(data))
-        use ripemd::{Ripemd160, Digest as RipemdDigest};
+        use ripemd::{Digest as RipemdDigest, Ripemd160};
 
         let sha256_hash = {
             let mut hasher = Sha256::new();
@@ -449,17 +448,51 @@ impl ScriptEngine {
         };
 
         let mut hasher = Ripemd160::new();
-        hasher.update(&sha256_hash);
+        hasher.update(sha256_hash);
         format!("{:x}", hasher.finalize())
     }
 
-    /// 验证签名（简化版）
+    /// Verify an ECDSA signature against the transaction hash.
     ///
-    /// 实际应使用ECDSA验证
-    fn verify_signature(&self, _signature: &str, _pub_key: &str) -> Result<bool> {
-        // 简化版：总是返回true
-        // 实际实现应该使用secp256k1进行ECDSA验证
-        Ok(true)
+    /// Attempts real secp256k1 verification when both the signature and public
+    /// key are valid hex-encoded DER / compressed-pubkey bytes.  Falls back to
+    /// `false` when decoding fails (e.g. in unit tests that push placeholder
+    /// strings such as `"signature"`).
+    fn verify_signature(&self, signature: &str, pub_key: &str) -> Result<bool> {
+        use bitcoin_hashes::{sha256, Hash};
+        use secp256k1::{ecdsa::Signature as EcdsaSig, Message, PublicKey, Secp256k1};
+
+        // Decode hex-encoded signature and public key
+        let sig_bytes = match hex::decode(signature) {
+            Ok(b) => b,
+            Err(_) => return Ok(false),
+        };
+        let pk_bytes = match hex::decode(pub_key) {
+            Ok(b) => b,
+            Err(_) => return Ok(false),
+        };
+
+        let sig = match EcdsaSig::from_der(&sig_bytes) {
+            Ok(s) => s,
+            Err(_) => {
+                // Try compact (64-byte) encoding as fallback
+                match EcdsaSig::from_compact(&sig_bytes) {
+                    Ok(s) => s,
+                    Err(_) => return Ok(false),
+                }
+            }
+        };
+
+        let pubkey = match PublicKey::from_slice(&pk_bytes) {
+            Ok(pk) => pk,
+            Err(_) => return Ok(false),
+        };
+
+        let msg_hash = sha256::Hash::hash(self.tx_hash.as_bytes());
+        let message = Message::from_digest(msg_hash.to_byte_array());
+
+        let secp = Secp256k1::verification_only();
+        Ok(secp.verify_ecdsa(&message, &sig, &pubkey).is_ok())
     }
 }
 
@@ -472,7 +505,9 @@ mod tests {
         let mut engine = ScriptEngine::new("test_tx".to_string());
 
         // 测试PUSH和DUP
-        engine.execute_op(&OpCode::PushData("hello".to_string())).unwrap();
+        engine
+            .execute_op(&OpCode::PushData("hello".to_string()))
+            .unwrap();
         engine.execute_op(&OpCode::OpDup).unwrap();
 
         assert_eq!(engine.stack.len(), 2);
@@ -485,7 +520,9 @@ mod tests {
         let mut engine = ScriptEngine::new("test_tx".to_string());
 
         // 测试SHA256
-        engine.execute_op(&OpCode::PushData("test".to_string())).unwrap();
+        engine
+            .execute_op(&OpCode::PushData("test".to_string()))
+            .unwrap();
         engine.execute_op(&OpCode::OpSha256).unwrap();
 
         assert_eq!(engine.stack.len(), 1);
@@ -497,8 +534,12 @@ mod tests {
         let mut engine = ScriptEngine::new("test_tx".to_string());
 
         // 测试EQUAL
-        engine.execute_op(&OpCode::PushData("a".to_string())).unwrap();
-        engine.execute_op(&OpCode::PushData("a".to_string())).unwrap();
+        engine
+            .execute_op(&OpCode::PushData("a".to_string()))
+            .unwrap();
+        engine
+            .execute_op(&OpCode::PushData("a".to_string()))
+            .unwrap();
         engine.execute_op(&OpCode::OpEqual).unwrap();
 
         assert_eq!(engine.stack.last().unwrap(), "1");
@@ -529,32 +570,48 @@ mod tests {
 
     #[test]
     fn test_multisig_script() {
-        let pub_keys = vec![
-            "key1".to_string(),
-            "key2".to_string(),
-            "key3".to_string(),
-        ];
+        let pub_keys = vec!["key1".to_string(), "key2".to_string(), "key3".to_string()];
 
         // 创建2-of-3多签脚本
         let script = Script::multisig(2, pub_keys);
 
-        assert!(matches!(script.ops.last().unwrap(), OpCode::OpCheckMultiSig));
+        assert!(matches!(
+            script.ops.last().unwrap(),
+            OpCode::OpCheckMultiSig
+        ));
     }
 
     #[test]
     fn test_script_verification_success() {
-        // 创建简单的解锁/锁定脚本
+        // Use real secp256k1 ECDSA to produce a valid signature
+        use crate::crypto::CryptoWallet;
+
+        let wallet = CryptoWallet::new();
+        let tx_hash = "test_tx_hash";
+        let sig = wallet.sign(tx_hash.as_bytes());
+        let sig_hex = hex::encode(sig.serialize_der());
+        let pk_hex = hex::encode(wallet.public_key.serialize());
+
+        let script_sig = Script::new(vec![OpCode::PushData(sig_hex), OpCode::PushData(pk_hex)]);
+
+        let script_pubkey = Script::new(vec![OpCode::OpCheckSig]);
+
+        let result = Script::verify(&script_sig, &script_pubkey, tx_hash).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn test_script_verification_invalid_sig() {
+        // Invalid (non-hex) strings should fail verification, not panic
         let script_sig = Script::new(vec![
-            OpCode::PushData("sig".to_string()),
-            OpCode::PushData("pubkey".to_string()),
+            OpCode::PushData("bad_sig".to_string()),
+            OpCode::PushData("bad_pk".to_string()),
         ]);
 
-        let script_pubkey = Script::new(vec![
-            OpCode::OpCheckSig,
-        ]);
+        let script_pubkey = Script::new(vec![OpCode::OpCheckSig]);
 
         let result = Script::verify(&script_sig, &script_pubkey, "tx_hash").unwrap();
-        assert!(result);
+        assert!(!result);
     }
 
     #[test]
@@ -562,8 +619,12 @@ mod tests {
         let mut engine = ScriptEngine::new("test_tx".to_string());
 
         // 测试加法: 2 + 3 = 5
-        engine.execute_op(&OpCode::PushData("2".to_string())).unwrap();
-        engine.execute_op(&OpCode::PushData("3".to_string())).unwrap();
+        engine
+            .execute_op(&OpCode::PushData("2".to_string()))
+            .unwrap();
+        engine
+            .execute_op(&OpCode::PushData("3".to_string()))
+            .unwrap();
         engine.execute_op(&OpCode::OpAdd).unwrap();
 
         assert_eq!(engine.stack.last().unwrap(), "5");

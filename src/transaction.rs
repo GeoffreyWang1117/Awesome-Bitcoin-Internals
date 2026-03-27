@@ -1,3 +1,4 @@
+use crate::wallet::Wallet;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -14,10 +15,10 @@ use sha2::{Digest, Sha256};
 /// 要花费比特币，必须消费完整的UTXO，不能部分花费。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxInput {
-    pub txid: String,           // 被引用的交易ID（32字节哈希）
-    pub vout: usize,            // 输出索引（从0开始）
-    pub signature: String,      // 数字签名（简化版本，实际应使用ECDSA签名）
-    pub pub_key: String,        // 公钥（用于验证签名，对应发送者地址）
+    pub txid: String,      // 被引用的交易ID（32字节哈希）
+    pub vout: usize,       // 输出索引（从0开始）
+    pub signature: String, // 数字签名（简化版本，实际应使用ECDSA签名）
+    pub pub_key: String,   // 公钥（用于验证签名，对应发送者地址）
 }
 
 impl TxInput {
@@ -51,8 +52,8 @@ impl TxInput {
 /// UTXO一旦被创建，就会一直存在于UTXO集合中，直到被某个交易的输入引用并花费。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxOutput {
-    pub value: u64,             // 金额（单位：satoshi，1 BTC = 10^8 satoshi）
-    pub pub_key_hash: String,   // 接收者的公钥哈希（地址），用于锁定输出
+    pub value: u64,           // 金额（单位：satoshi，1 BTC = 10^8 satoshi）
+    pub pub_key_hash: String, // 接收者的公钥哈希（地址），用于锁定输出
 }
 
 impl TxOutput {
@@ -142,7 +143,7 @@ impl Transaction {
     /// - 没有有效的输入（不消费任何UTXO）
     /// - 创造新的比特币（区块奖励）
     /// - 收集区块中所有交易的手续费
-    /// - 输入的txid为空字符串，signature为"coinbase"
+    /// - 输入的txid为空字符串，signature包含区块高度（BIP34）
     ///
     /// 比特币的区块奖励每210,000个区块减半一次（约4年）。
     /// 最初是50 BTC，目前（2024年后）是6.25 BTC。
@@ -156,11 +157,16 @@ impl Transaction {
     /// # 返回值
     /// 返回Coinbase交易实例
     pub fn new_coinbase(to: String, reward: u64, timestamp: u64, total_fees: u64) -> Self {
+        // 使用计数器确保每个coinbase交易ID唯一（类似BIP34的区块高度编码）
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COINBASE_COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nonce = COINBASE_COUNTER.fetch_add(1, Ordering::Relaxed);
+
         let tx_out = TxOutput::new(reward + total_fees, to);
         let tx_in = TxInput {
             txid: String::new(),
             vout: 0,
-            signature: String::from("coinbase"),
+            signature: format!("coinbase:{}", nonce),
             pub_key: String::from("coinbase"),
         };
 
@@ -204,22 +210,18 @@ impl Transaction {
         self.inputs.len() == 1 && self.inputs[0].txid.is_empty()
     }
 
-    /// 验证交易（简化版本）
+    /// 验证交易的ECDSA数字签名
     ///
-    /// 在实际比特币中，交易验证包括：
-    /// 1. 验证所有输入的数字签名（ECDSA）
-    /// 2. 检查输入引用的UTXO是否存在且未被花费
-    /// 3. 验证输入总额 >= 输出总额
-    /// 4. 检查脚本执行结果
-    /// 5. 验证交易大小和格式
-    ///
-    /// 这里简化为基本检查：
-    /// - Coinbase交易总是有效
-    /// - 检查是否有输入和输出
-    /// - 检查签名和公钥是否存在
+    /// 验证流程：
+    /// 1. Coinbase交易（挖矿奖励）免验证
+    /// 2. 检查是否有输入和输出
+    /// 3. 对每个输入，使用secp256k1验证ECDSA签名：
+    ///    - 从输入中提取公钥和签名（十六进制编码）
+    ///    - 重建签名时的原始数据：`"{txid}{vout}"`
+    ///    - 调用secp256k1验证签名的数学正确性
     ///
     /// # 返回值
-    /// 如果交易有效返回true，否则返回false
+    /// 如果所有签名都有效返回true，否则返回false
     pub fn verify(&self) -> bool {
         // Coinbase交易总是有效的
         if self.is_coinbase() {
@@ -231,9 +233,10 @@ impl Transaction {
             return false;
         }
 
-        // 简化验证：检查签名是否存在
+        // 使用secp256k1验证每个输入的ECDSA签名
         for input in &self.inputs {
-            if input.signature.is_empty() || input.pub_key.is_empty() {
+            let signed_data = format!("{}{}", input.txid, input.vout);
+            if !Wallet::verify_signature(&input.pub_key, &signed_data, &input.signature) {
                 return false;
             }
         }

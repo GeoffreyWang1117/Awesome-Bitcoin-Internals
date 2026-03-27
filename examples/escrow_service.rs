@@ -1,14 +1,14 @@
-/// 案例2: 托管服务
-///
-/// 场景：买卖双方通过第三方仲裁者进行交易
-/// 使用2-of-3多签实现托管机制
-///
-/// 运行: cargo run --example escrow_service
+//! 案例2: 托管服务
+//!
+//! 场景：买卖双方通过第三方仲裁者进行交易
+//! 使用2-of-3多签实现托管机制
+//!
+//! 运行: cargo run --example escrow_service
 
 use bitcoin_simulation::{
     blockchain::Blockchain,
-    wallet::Wallet,
     multisig::{MultiSigAddress, MultiSigTxBuilder},
+    wallet::Wallet,
 };
 
 fn main() {
@@ -21,9 +21,9 @@ fn main() {
 
     // 创建参与方钱包
     println!(">>> 第1步: 创建交易参与方");
-    let buyer = Wallet::new();       // 买家
-    let seller = Wallet::new();      // 卖家
-    let arbitrator = Wallet::new();  // 仲裁者
+    let buyer = Wallet::new(); // 买家
+    let seller = Wallet::new(); // 卖家
+    let arbitrator = Wallet::new(); // 仲裁者
 
     println!("👤 买家地址: {}", buyer.address);
     println!("👤 卖家地址: {}", seller.address);
@@ -33,13 +33,15 @@ fn main() {
     // 给买家发放初始资金
     println!(">>> 第2步: 买家获得初始资金");
     if let Ok(tx) = blockchain.create_transaction(
-        &Wallet::from_address("genesis_address".to_string()),
+        &Blockchain::genesis_wallet(),
         buyer.address.clone(),
         100000, // 10万 satoshi
         0,
     ) {
         blockchain.add_transaction(tx).ok();
-        blockchain.mine_pending_transactions(buyer.address.clone()).ok();
+        blockchain
+            .mine_pending_transactions(buyer.address.clone())
+            .ok();
         println!("✓ 买家获得 100,000 satoshi\n");
     }
 
@@ -51,8 +53,7 @@ fn main() {
         arbitrator.public_key.clone(),
     ];
 
-    let escrow_address = MultiSigAddress::new(2, public_keys)
-        .expect("创建托管地址失败");
+    let escrow_address = MultiSigAddress::new(2, public_keys).expect("创建托管地址失败");
 
     println!("🔒 托管地址: {}", escrow_address.address);
     println!("📋 规则: 任意2方签名可释放资金");
@@ -72,7 +73,9 @@ fn main() {
         100, // 手续费
     ) {
         blockchain.add_transaction(tx).ok();
-        blockchain.mine_pending_transactions(buyer.address.clone()).ok();
+        blockchain
+            .mine_pending_transactions(buyer.address.clone())
+            .ok();
         println!("✓ {} satoshi 已存入托管", escrow_amount);
     }
 
@@ -90,11 +93,15 @@ fn main() {
 
     // 买家签名（确认收货）
     println!("✅ 买家签名（确认收货）");
-    release_builder.add_signature(&buyer, "release_to_seller").ok();
+    release_builder
+        .add_signature(&buyer, "release_to_seller")
+        .ok();
 
     // 卖家签名（同意释放）
     println!("✅ 卖家签名（请求付款）");
-    release_builder.add_signature(&seller, "release_to_seller").ok();
+    release_builder
+        .add_signature(&seller, "release_to_seller")
+        .ok();
 
     if release_builder.is_complete() {
         println!("\n✓ 收集到2个签名，资金释放给卖家");
@@ -119,7 +126,9 @@ fn main() {
 
     // 仲裁者签名（支持退款）
     println!("✅ 仲裁者签名（批准退款）");
-    refund_builder.add_signature(&arbitrator, "refund_to_buyer").ok();
+    refund_builder
+        .add_signature(&arbitrator, "refund_to_buyer")
+        .ok();
 
     if refund_builder.is_complete() {
         println!("\n✓ 收集到2个签名，资金退回买家");

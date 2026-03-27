@@ -1,7 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-use crate::transaction::Transaction;
 use crate::merkle::MerkleTree;
+use crate::transaction::Transaction;
 use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 区块（Block）- 区块链的基本组成单位
 ///
@@ -35,13 +35,13 @@ use serde::{Deserialize, Serialize};
 /// - 平均包含2000-3000笔交易
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
-    pub index: u32,                      // 区块高度（索引），创世区块为0
-    pub timestamp: u64,                  // Unix时间戳（秒）
-    pub transactions: Vec<Transaction>,  // 交易列表（第一笔是Coinbase）
-    pub previous_hash: String,           // 父区块哈希（SHA256，64字符）
-    pub hash: String,                    // 当前区块哈希（通过挖矿找到）
-    pub nonce: u64,                      // 工作量证明的随机数（挖矿调整此值）
-    pub merkle_root: String,             // 交易Merkle树根（用于高效验证交易）
+    pub index: u32,                     // 区块高度（索引），创世区块为0
+    pub timestamp: u64,                 // Unix时间戳（秒）
+    pub transactions: Vec<Transaction>, // 交易列表（第一笔是Coinbase）
+    pub previous_hash: String,          // 父区块哈希（SHA256，64字符）
+    pub hash: String,                   // 当前区块哈希（通过挖矿找到）
+    pub nonce: u64,                     // 工作量证明的随机数（挖矿调整此值）
+    pub merkle_root: String,            // 交易Merkle树根（用于高效验证交易）
 }
 
 impl Block {
@@ -137,7 +137,7 @@ impl Block {
 
         // 不断增加nonce直到找到有效哈希（暴力穷举）
         // 实际比特币矿工会并行尝试大量nonce值
-        while &self.hash[..difficulty] != target {
+        while self.hash[..difficulty] != target {
             self.nonce += 1;
             self.hash = self.calculate_hash();
         }

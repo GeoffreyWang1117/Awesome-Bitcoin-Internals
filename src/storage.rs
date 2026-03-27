@@ -6,10 +6,10 @@
 //! - 快速查询和索引
 //! - 自动压缩和缓存
 
-use rocksdb::{DB, Options, WriteBatch, IteratorMode, BlockBasedOptions};
-use crate::error::{BitcoinError, Result};
 use crate::block::Block;
+use crate::error::{BitcoinError, Result};
 use crate::info;
+use rocksdb::{BlockBasedOptions, IteratorMode, Options, WriteBatch, DB};
 
 /// RocksDB存储管理器
 pub struct RocksDBStorage {
@@ -22,8 +22,6 @@ mod keys {
     pub const TX_PREFIX: &[u8] = b"tx:";
     pub const UTXO_PREFIX: &[u8] = b"utxo:";
     pub const ADDR_PREFIX: &[u8] = b"addr:";
-    pub const META_PREFIX: &[u8] = b"meta:";
-
     pub const CHAIN_HEIGHT: &[u8] = b"meta:height";
     pub const CHAIN_TIP: &[u8] = b"meta:tip";
 }
@@ -64,10 +62,9 @@ impl RocksDBStorage {
         block_opts.set_bloom_filter(10.0, false);
         opts.set_block_based_table_factory(&block_opts);
 
-        let db = DB::open(&opts, path)
-            .map_err(|e| BitcoinError::StorageError {
-                reason: format!("打开RocksDB失败: {}", e),
-            })?;
+        let db = DB::open(&opts, path).map_err(|e| BitcoinError::StorageError {
+            reason: format!("打开RocksDB失败: {}", e),
+        })?;
 
         Ok(Self { db })
     }
@@ -77,10 +74,10 @@ impl RocksDBStorage {
     /// 保存区块
     pub fn put_block(&self, height: u64, block: &Block) -> Result<()> {
         let key = Self::block_key(height);
-        let value = serde_json::to_vec(block)
-            .map_err(|e| BitcoinError::SerializationError(e))?;
+        let value = serde_json::to_vec(block).map_err(BitcoinError::SerializationError)?;
 
-        self.db.put(&key, value)
+        self.db
+            .put(&key, value)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("存储区块失败: {}", e),
             })?;
@@ -95,8 +92,8 @@ impl RocksDBStorage {
 
         match self.db.get(&key) {
             Ok(Some(bytes)) => {
-                let block = serde_json::from_slice(&bytes)
-                    .map_err(|e| BitcoinError::SerializationError(e))?;
+                let block =
+                    serde_json::from_slice(&bytes).map_err(BitcoinError::SerializationError)?;
                 Ok(Some(block))
             }
             Ok(None) => Ok(None),
@@ -109,7 +106,8 @@ impl RocksDBStorage {
     /// 删除区块
     pub fn delete_block(&self, height: u64) -> Result<()> {
         let key = Self::block_key(height);
-        self.db.delete(&key)
+        self.db
+            .delete(&key)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("删除区块失败: {}", e),
             })
@@ -122,7 +120,8 @@ impl RocksDBStorage {
         let key = Self::tx_key(txid);
         let value = block_height.to_be_bytes();
 
-        self.db.put(&key, value)
+        self.db
+            .put(&key, value)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("索引交易失败: {}", e),
             })
@@ -151,25 +150,34 @@ impl RocksDBStorage {
     // ========== UTXO集合操作 ==========
 
     /// 添加UTXO
-    pub fn put_utxo(&self, txid: &str, vout: usize, output: &crate::transaction::TxOutput) -> Result<()> {
+    pub fn put_utxo(
+        &self,
+        txid: &str,
+        vout: usize,
+        output: &crate::transaction::TxOutput,
+    ) -> Result<()> {
         let key = Self::utxo_key(txid, vout);
-        let value = serde_json::to_vec(output)
-            .map_err(|e| BitcoinError::SerializationError(e))?;
+        let value = serde_json::to_vec(output).map_err(BitcoinError::SerializationError)?;
 
-        self.db.put(&key, value)
+        self.db
+            .put(&key, value)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("存储UTXO失败: {}", e),
             })
     }
 
     /// 获取UTXO
-    pub fn get_utxo(&self, txid: &str, vout: usize) -> Result<Option<crate::transaction::TxOutput>> {
+    pub fn get_utxo(
+        &self,
+        txid: &str,
+        vout: usize,
+    ) -> Result<Option<crate::transaction::TxOutput>> {
         let key = Self::utxo_key(txid, vout);
 
         match self.db.get(&key) {
             Ok(Some(bytes)) => {
-                let output = serde_json::from_slice(&bytes)
-                    .map_err(|e| BitcoinError::SerializationError(e))?;
+                let output =
+                    serde_json::from_slice(&bytes).map_err(BitcoinError::SerializationError)?;
                 Ok(Some(output))
             }
             Ok(None) => Ok(None),
@@ -182,18 +190,25 @@ impl RocksDBStorage {
     /// 删除UTXO（已花费）
     pub fn delete_utxo(&self, txid: &str, vout: usize) -> Result<()> {
         let key = Self::utxo_key(txid, vout);
-        self.db.delete(&key)
+        self.db
+            .delete(&key)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("删除UTXO失败: {}", e),
             })
     }
 
     /// 获取地址的所有UTXO
-    pub fn get_utxos_by_address(&self, address: &str) -> Result<Vec<(String, usize, crate::transaction::TxOutput)>> {
+    pub fn get_utxos_by_address(
+        &self,
+        address: &str,
+    ) -> Result<Vec<(String, usize, crate::transaction::TxOutput)>> {
         let mut utxos = Vec::new();
 
         // 遍历所有UTXO
-        let iter = self.db.iterator(IteratorMode::From(keys::UTXO_PREFIX, rocksdb::Direction::Forward));
+        let iter = self.db.iterator(IteratorMode::From(
+            keys::UTXO_PREFIX,
+            rocksdb::Direction::Forward,
+        ));
 
         for item in iter {
             let (key, value) = item.map_err(|e| BitcoinError::StorageError {
@@ -206,8 +221,8 @@ impl RocksDBStorage {
             }
 
             // 解析输出
-            let output: crate::transaction::TxOutput = serde_json::from_slice(&value)
-                .map_err(|e| BitcoinError::SerializationError(e))?;
+            let output: crate::transaction::TxOutput =
+                serde_json::from_slice(&value).map_err(BitcoinError::SerializationError)?;
 
             // 检查地址是否匹配
             if output.pub_key_hash == address {
@@ -230,7 +245,8 @@ impl RocksDBStorage {
     /// 索引地址交易
     pub fn index_address(&self, address: &str, txid: &str) -> Result<()> {
         let key = Self::addr_key(address, txid);
-        self.db.put(&key, b"1")
+        self.db
+            .put(&key, b"1")
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("索引地址失败: {}", e),
             })
@@ -239,12 +255,12 @@ impl RocksDBStorage {
     /// 获取地址的所有交易
     pub fn get_address_transactions(&self, address: &str) -> Result<Vec<String>> {
         let mut txids = Vec::new();
-        let prefix = format!("{}{}",
-            String::from_utf8_lossy(keys::ADDR_PREFIX),
-            address
-        );
+        let prefix = format!("{}{}", String::from_utf8_lossy(keys::ADDR_PREFIX), address);
 
-        let iter = self.db.iterator(IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward));
+        let iter = self.db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
 
         for item in iter {
             let (key, _) = item.map_err(|e| BitcoinError::StorageError {
@@ -257,7 +273,7 @@ impl RocksDBStorage {
             }
 
             // 提取txid
-            if let Some(txid) = key_str.split(':').last() {
+            if let Some(txid) = key_str.split(':').next_back() {
                 txids.push(txid.to_string());
             }
         }
@@ -269,7 +285,8 @@ impl RocksDBStorage {
 
     /// 设置链高度
     pub fn set_chain_height(&self, height: u64) -> Result<()> {
-        self.db.put(keys::CHAIN_HEIGHT, &height.to_be_bytes())
+        self.db
+            .put(keys::CHAIN_HEIGHT, height.to_be_bytes())
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("设置链高度失败: {}", e),
             })
@@ -295,7 +312,8 @@ impl RocksDBStorage {
 
     /// 设置链顶端区块哈希
     pub fn set_chain_tip(&self, hash: &str) -> Result<()> {
-        self.db.put(keys::CHAIN_TIP, hash.as_bytes())
+        self.db
+            .put(keys::CHAIN_TIP, hash.as_bytes())
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("设置链顶端失败: {}", e),
             })
@@ -322,14 +340,14 @@ impl RocksDBStorage {
             match op {
                 BatchOperation::PutBlock(height, block) => {
                     let key = Self::block_key(height);
-                    let value = serde_json::to_vec(&block)
-                        .map_err(|e| BitcoinError::SerializationError(e))?;
+                    let value =
+                        serde_json::to_vec(&block).map_err(BitcoinError::SerializationError)?;
                     batch.put(&key, value);
                 }
                 BatchOperation::PutUtxo(txid, vout, output) => {
                     let key = Self::utxo_key(&txid, vout);
-                    let value = serde_json::to_vec(&output)
-                        .map_err(|e| BitcoinError::SerializationError(e))?;
+                    let value =
+                        serde_json::to_vec(&output).map_err(BitcoinError::SerializationError)?;
                     batch.put(&key, value);
                 }
                 BatchOperation::DeleteUtxo(txid, vout) => {
@@ -338,12 +356,13 @@ impl RocksDBStorage {
                 }
                 BatchOperation::IndexTransaction(txid, height) => {
                     let key = Self::tx_key(&txid);
-                    batch.put(&key, &height.to_be_bytes());
+                    batch.put(&key, height.to_be_bytes());
                 }
             }
         }
 
-        self.db.write(batch)
+        self.db
+            .write(batch)
             .map_err(|e| BitcoinError::StorageError {
                 reason: format!("批量写入失败: {}", e),
             })?;
@@ -357,7 +376,10 @@ impl RocksDBStorage {
     /// 获取UTXO集合大小
     pub fn get_utxo_count(&self) -> Result<usize> {
         let mut count = 0;
-        let iter = self.db.iterator(IteratorMode::From(keys::UTXO_PREFIX, rocksdb::Direction::Forward));
+        let iter = self.db.iterator(IteratorMode::From(
+            keys::UTXO_PREFIX,
+            rocksdb::Direction::Forward,
+        ));
 
         for item in iter {
             let (key, _) = item.map_err(|e| BitcoinError::StorageError {
@@ -375,7 +397,8 @@ impl RocksDBStorage {
 
     /// 获取数据库统计信息
     pub fn get_stats(&self) -> String {
-        self.db.property_value("rocksdb.stats")
+        self.db
+            .property_value("rocksdb.stats")
             .unwrap_or(None)
             .unwrap_or_else(|| "统计信息不可用".to_string())
     }

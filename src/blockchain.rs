@@ -1,30 +1,40 @@
 use crate::block::Block;
+use crate::indexer::TransactionIndexer;
+use crate::mempool::Mempool;
+use crate::parallel_mining::ParallelMiner;
 use crate::transaction::{Transaction, TxInput, TxOutput};
 use crate::utxo::UTXOSet;
 use crate::wallet::Wallet;
-use crate::indexer::TransactionIndexer;
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 表示区块链
 pub struct Blockchain {
-    pub chain: Vec<Block>,          // 区块链（区块列表）
-    pub difficulty: usize,          // 挖矿难度
-    pub pending_transactions: Vec<Transaction>, // 待处理交易池
-    pub utxo_set: UTXOSet,          // UTXO集合
-    pub mining_reward: u64,         // 挖矿奖励
+    pub chain: Vec<Block>,           // 区块链（区块列表）
+    pub difficulty: usize,           // 挖矿难度
+    pub mempool: Mempool,            // 内存池（替代Vec<Transaction>）
+    pub utxo_set: UTXOSet,           // UTXO集合
+    pub mining_reward: u64,          // 挖矿奖励
     pub indexer: TransactionIndexer, // 交易索引器（加速查询）
+    miner: ParallelMiner,            // 并行挖矿器
+    pending_spent: HashSet<String>,  // 待确认交易已花费的UTXO ("txid:vout")
 }
 
 impl Blockchain {
     /// 创建新的区块链
     pub fn new() -> Blockchain {
+        // 使用宽松验证的内存池（Blockchain自身已做UTXO验证）
+        let mempool = Mempool::new_permissive();
+
         let mut blockchain = Blockchain {
             chain: vec![],
-            difficulty: 3,  // 设置挖矿难度
-            pending_transactions: vec![],
+            difficulty: 3, // 设置挖矿难度
+            mempool,
             utxo_set: UTXOSet::new(),
-            mining_reward: 50,  // 挖矿奖励50 BTC
+            mining_reward: 50,                  // 挖矿奖励50 BTC
             indexer: TransactionIndexer::new(), // 初始化索引器
+            miner: ParallelMiner::default(),    // 多线程并行挖矿
+            pending_spent: HashSet::new(),      // 待确认UTXO追踪
         };
 
         // 创建创世区块
@@ -35,6 +45,11 @@ impl Blockchain {
         blockchain
     }
 
+    /// 获取创世钱包（确定性，方便演示时花费创世币）
+    pub fn genesis_wallet() -> Wallet {
+        Wallet::genesis()
+    }
+
     /// 创建创世区块
     fn create_genesis_block(&mut self) -> Block {
         let timestamp = SystemTime::now()
@@ -42,12 +57,13 @@ impl Blockchain {
             .unwrap()
             .as_secs();
 
-        // 创世区块包含一个coinbase交易
+        // 使用确定性创世钱包地址，保证可被签名花费
+        let genesis_wallet = Wallet::genesis();
         let coinbase_tx = Transaction::new_coinbase(
-            "genesis_address".to_string(),
-            100,
+            genesis_wallet.address,
+            10_000_000, // 创世区块奖励 10M satoshi
             timestamp,
-            0, // 创世区块没有交易费
+            0,
         );
 
         // 将创世交易添加到UTXO集合
@@ -66,25 +82,20 @@ impl Blockchain {
     ) -> Result<Transaction, String> {
         let total_needed = amount + fee;
 
-        // 查找可用的UTXO
-        let spendable = self.utxo_set.find_spendable_outputs(&from_wallet.address, total_needed);
+        // 查找可用的UTXO（排除已被待确认交易花费的UTXO）
+        let spendable = self.utxo_set.find_spendable_outputs_excluding(
+            &from_wallet.address,
+            total_needed,
+            &self.pending_spent,
+        );
 
-        if spendable.is_none() {
-            return Err("余额不足（包括交易费）".to_string());
-        }
-
-        let (accumulated, utxos) = spendable.unwrap();
+        let (accumulated, utxos) = spendable.ok_or_else(|| "余额不足（包括交易费）".to_string())?;
 
         // 创建交易输入
         let mut inputs = Vec::new();
         for (txid, vout) in utxos {
             let signature = from_wallet.sign(&format!("{}{}", txid, vout));
-            let input = TxInput::new(
-                txid,
-                vout,
-                signature,
-                from_wallet.public_key.clone(),
-            );
+            let input = TxInput::new(txid, vout, signature, from_wallet.public_key.clone());
             inputs.push(input);
         }
 
@@ -108,19 +119,17 @@ impl Blockchain {
         Ok(Transaction::new(inputs, outputs, timestamp, fee))
     }
 
-    /// 添加交易到待处理池（事务处理）
+    /// 添加交易到待处理池（内存池）
     pub fn add_transaction(&mut self, transaction: Transaction) -> Result<(), String> {
-        // 验证交易
+        // 验证交易ECDSA签名
         if !transaction.verify() {
             return Err("交易验证失败".to_string());
         }
 
-        // 如果不是coinbase交易，验证余额
+        // 如果不是coinbase交易，验证UTXO和余额
         if !transaction.is_coinbase() {
-            // 计算输入总额
             let mut input_sum = 0u64;
             for input in &transaction.inputs {
-                // 查找输入引用的UTXO
                 if let Some(outputs) = self.find_transaction_outputs(&input.txid) {
                     if let Some((_, output)) = outputs.iter().find(|(idx, _)| *idx == input.vout) {
                         input_sum += output.value;
@@ -132,30 +141,34 @@ impl Blockchain {
                 }
             }
 
-            // 计算输出总额
             let output_sum: u64 = transaction.outputs.iter().map(|o| o.value).sum();
-
-            // 验证输入≥输出
             if input_sum < output_sum {
                 return Err("余额不足，交易无效".to_string());
             }
         }
 
-        // 将交易添加到待处理池
-        self.pending_transactions.push(transaction);
-        Ok(())
+        // 记录待确认交易消费的UTXO（用于防止连续交易冲突）
+        if !transaction.is_coinbase() {
+            for input in &transaction.inputs {
+                self.pending_spent
+                    .insert(format!("{}:{}", input.txid, input.vout));
+            }
+        }
+
+        // 添加到内存池
+        self.mempool
+            .add_transaction(transaction)
+            .map_err(|e| format!("内存池拒绝: {}", e))
     }
 
-    /// 挖矿 - 将待处理交易打包成区块（按费率优先排序）
+    /// 挖矿 - 从内存池选取交易打包成区块（并行挖矿）
     pub fn mine_pending_transactions(&mut self, miner_address: String) -> Result<(), String> {
-        if self.pending_transactions.is_empty() {
+        if self.mempool.is_empty() {
             return Err("没有待处理的交易".to_string());
         }
 
-        // 按交易费率从高到低排序（加速交易）
-        self.pending_transactions.sort_by(|a, b| {
-            b.fee_rate().partial_cmp(&a.fee_rate()).unwrap()
-        });
+        // 从内存池获取交易（已按费率排序，高优先）
+        let pending_txs = self.mempool.get_top_transactions(usize::MAX);
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -163,29 +176,28 @@ impl Blockchain {
             .as_secs();
 
         // 计算总交易费
-        let total_fees: u64 = self.pending_transactions.iter().map(|tx| tx.fee).sum();
+        let total_fees: u64 = pending_txs.iter().map(|tx| tx.fee).sum();
 
         // 创建coinbase交易（挖矿奖励 + 交易费）
-        let coinbase_tx = Transaction::new_coinbase(
-            miner_address,
-            self.mining_reward,
-            timestamp,
-            total_fees,
-        );
+        let coinbase_tx =
+            Transaction::new_coinbase(miner_address, self.mining_reward, timestamp, total_fees);
 
-        // 创建新区块，包含所有待处理交易
+        // 创建新区块
         let mut transactions = vec![coinbase_tx];
-        transactions.append(&mut self.pending_transactions.clone());
+        transactions.extend(pending_txs.iter().cloned());
 
-        let previous_hash = self.chain.last().unwrap().hash.clone();
-        let mut block = Block::new(
-            self.chain.len() as u32,
-            transactions,
-            previous_hash,
-        );
+        let previous_hash = self
+            .chain
+            .last()
+            .ok_or("blockchain is empty (no genesis block)")?
+            .hash
+            .clone();
+        let mut block = Block::new(self.chain.len() as u32, transactions, previous_hash);
 
-        // 挖矿
-        block.mine_block(self.difficulty);
+        // 并行挖矿（多线程PoW）
+        self.miner
+            .mine_block(&mut block, self.difficulty)
+            .map_err(|e| format!("挖矿失败: {}", e))?;
 
         // 验证区块
         if !block.validate_transactions() {
@@ -200,11 +212,16 @@ impl Blockchain {
         }
 
         // 添加区块到链
-        self.indexer.index_block(&block); // 索引新区块
+        self.indexer.index_block(&block);
         self.chain.push(block);
 
-        // 清空待处理交易池
-        self.pending_transactions.clear();
+        // 从内存池移除已确认的交易
+        for tx in &pending_txs {
+            let _ = self.mempool.remove_transaction(&tx.id);
+        }
+
+        // 清空待确认UTXO追踪
+        self.pending_spent.clear();
 
         Ok(())
     }
@@ -250,7 +267,7 @@ impl Blockchain {
 
             // 验证工作量证明
             let target = "0".repeat(self.difficulty);
-            if &current_block.hash[..self.difficulty] != target {
+            if current_block.hash[..self.difficulty] != target {
                 println!("区块 {} 工作量证明无效", i);
                 return false;
             }
@@ -286,7 +303,10 @@ impl Blockchain {
                 println!("    输入数: {}", tx.inputs.len());
                 println!("    输出数: {}", tx.outputs.len());
                 for (j, output) in tx.outputs.iter().enumerate() {
-                    println!("      输出 {}: {} -> {}", j, output.value, output.pub_key_hash);
+                    println!(
+                        "      输出 {}: {} -> {}",
+                        j, output.value, output.pub_key_hash
+                    );
                 }
             }
         }

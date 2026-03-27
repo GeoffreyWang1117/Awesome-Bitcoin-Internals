@@ -2,12 +2,7 @@
 //!
 //! 本模块提供统一的日志系统配置，支持多种输出格式和日志级别。
 
-use tracing_subscriber::{
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    EnvFilter,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// 日志级别配置
 #[derive(Debug, Clone, Copy)]
@@ -97,13 +92,12 @@ impl Default for LogConfig {
 /// ```
 pub fn init_logging(config: &LogConfig) {
     // 从环境变量读取日志级别，如果没有设置则使用配置的级别
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            EnvFilter::new(format!(
-                "bitcoin_simulation={},tower_http=info,axum=info",
-                config.level.as_filter_str()
-            ))
-        });
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new(format!(
+            "bitcoin_simulation={},tower_http=info,axum=info",
+            config.level.as_filter_str()
+        ))
+    });
 
     match config.format {
         LogFormat::Pretty => {
@@ -242,10 +236,6 @@ mod tests {
         error!("This is an error message");
 
         // 结构化日志
-        info!(
-            user = "alice",
-            amount = 1000,
-            "User performed transaction"
-        );
+        info!(user = "alice", amount = 1000, "User performed transaction");
     }
 }

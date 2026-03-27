@@ -474,9 +474,13 @@ async function runDemo() {
     const bob = wallets[wallets.length-2].address;
     const charlie = wallets[wallets.length-1].address;
 
+    // Get genesis address from blockchain info
+    const info = await api('/blockchain/info');
+    const genesis = info.data.genesis_address;
+
     // Fund Alice via genesis + mining
-    toast('Demo: Funding Alice via genesis...', 'info');
-    await apiPost('/transaction/create', { from_address:'genesis_address', to_address:alice, amount:100, fee:0 });
+    toast('Demo: Funding Alice via genesis (ECDSA signed)...', 'info');
+    await apiPost('/transaction/create', { from_address:genesis, to_address:alice, amount:100, fee:0 });
     await loadInfo();
     await sleep(300);
 
@@ -486,8 +490,8 @@ async function runDemo() {
     await sleep(500);
 
     // Fund Bob
-    toast('Demo: Funding Bob via genesis...', 'info');
-    await apiPost('/transaction/create', { from_address:'genesis_address', to_address:bob, amount:80, fee:0 });
+    toast('Demo: Funding Bob via genesis (ECDSA signed)...', 'info');
+    await apiPost('/transaction/create', { from_address:genesis, to_address:bob, amount:80, fee:0 });
     await apiPost('/mine', { miner_address: bob });
     await refreshAll();
     await sleep(500);

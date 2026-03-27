@@ -24,9 +24,9 @@ use sha2::{Digest, Sha256};
 ///    tx1 tx2 tx3 tx4
 #[derive(Debug, Clone)]
 pub struct MerkleNode {
-    pub hash: String,                    // 节点的哈希值
-    pub left: Option<Box<MerkleNode>>,   // 左子节点（内部节点才有）
-    pub right: Option<Box<MerkleNode>>,  // 右子节点（内部节点才有）
+    pub hash: String,                   // 节点的哈希值
+    pub left: Option<Box<MerkleNode>>,  // 左子节点（内部节点才有）
+    pub right: Option<Box<MerkleNode>>, // 右子节点（内部节点才有）
 }
 
 impl MerkleNode {
@@ -94,8 +94,8 @@ impl MerkleNode {
 /// - IPFS内容寻址
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
-    pub root: Option<MerkleNode>,  // 树根节点
-    pub leaves: Vec<String>,       // 叶子节点数据（交易哈希列表）
+    pub root: Option<MerkleNode>, // 树根节点
+    pub leaves: Vec<String>,      // 叶子节点数据（交易哈希列表）
 }
 
 impl MerkleTree {
@@ -111,15 +111,12 @@ impl MerkleTree {
         let mut leaves: Vec<String> = transactions.to_vec();
 
         // 如果交易数量是奇数，复制最后一个
-        if leaves.len() % 2 != 0 {
+        if !leaves.len().is_multiple_of(2) {
             leaves.push(leaves.last().unwrap().clone());
         }
 
         // 构建叶子节点
-        let mut nodes: Vec<MerkleNode> = leaves
-            .iter()
-            .map(|tx| MerkleNode::new_leaf(tx))
-            .collect();
+        let mut nodes: Vec<MerkleNode> = leaves.iter().map(|tx| MerkleNode::new_leaf(tx)).collect();
 
         // 自底向上构建树
         while nodes.len() > 1 {
@@ -158,11 +155,11 @@ impl MerkleTree {
         let index = self.leaves.iter().position(|tx| tx == tx_hash)?;
         let mut proof = Vec::new();
         let mut current_index = index;
-        let mut level_size = self.leaves.len();
+        let _level_size = self.leaves.len();
 
         // 确保是偶数
         let mut leaves = self.leaves.clone();
-        if leaves.len() % 2 != 0 {
+        if !leaves.len().is_multiple_of(2) {
             leaves.push(leaves.last().unwrap().clone());
         }
 
@@ -196,7 +193,8 @@ impl MerkleTree {
                 } else {
                     left
                 };
-                let combined = format!("{}{}",
+                let combined = format!(
+                    "{}{}",
                     MerkleNode::hash_data(left),
                     MerkleNode::hash_data(right)
                 );
@@ -245,17 +243,12 @@ impl MerkleTree {
     /// # 返回值
     /// true - 交易确实在该区块中
     /// false - 交易不在该区块中，或证明无效
-    pub fn verify_proof(
-        tx_hash: &str,
-        proof: &[String],
-        root_hash: &str,
-        index: usize,
-    ) -> bool {
+    pub fn verify_proof(tx_hash: &str, proof: &[String], root_hash: &str, index: usize) -> bool {
         let mut current_hash = MerkleNode::hash_data(tx_hash);
         let mut current_index = index;
 
         for sibling_hash in proof {
-            let combined = if current_index % 2 == 0 {
+            let combined = if current_index.is_multiple_of(2) {
                 format!("{}{}", current_hash, sibling_hash)
             } else {
                 format!("{}{}", sibling_hash, current_hash)

@@ -1,5 +1,5 @@
 use crate::transaction::{Transaction, TxOutput};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// UTXO集合 - 管理所有未花费的交易输出
 ///
@@ -143,12 +143,55 @@ impl UTXOSet {
     /// # 返回值
     /// Some((accumulated, utxo_list)) - 成功找到足够的UTXO
     /// None - 余额不足
-    pub fn find_spendable_outputs(&self, address: &str, amount: u64) -> Option<(u64, Vec<(String, usize)>)> {
+    pub fn find_spendable_outputs(
+        &self,
+        address: &str,
+        amount: u64,
+    ) -> Option<(u64, Vec<(String, usize)>)> {
         let mut accumulated = 0u64;
         let mut unspent_outputs = Vec::new();
 
         for (txid, outputs) in &self.utxos {
             for (vout, output) in outputs {
+                if output.can_be_unlocked_with(address) {
+                    accumulated += output.value;
+                    unspent_outputs.push((txid.clone(), *vout));
+
+                    if accumulated >= amount {
+                        return Some((accumulated, unspent_outputs));
+                    }
+                }
+            }
+        }
+
+        if accumulated >= amount {
+            Some((accumulated, unspent_outputs))
+        } else {
+            None
+        }
+    }
+
+    /// 查找可用UTXO（排除已被待确认交易花费的UTXO）
+    ///
+    /// 这解决了同一钱包连续创建多笔交易时的UTXO冲突问题。
+    /// 待确认交易消费的UTXO会被跳过，确保每笔交易使用不同的UTXO。
+    pub fn find_spendable_outputs_excluding(
+        &self,
+        address: &str,
+        amount: u64,
+        excluded: &HashSet<String>,
+    ) -> Option<(u64, Vec<(String, usize)>)> {
+        let mut accumulated = 0u64;
+        let mut unspent_outputs = Vec::new();
+
+        for (txid, outputs) in &self.utxos {
+            for (vout, output) in outputs {
+                // 跳过已被待确认交易花费的UTXO
+                let utxo_key = format!("{}:{}", txid, vout);
+                if excluded.contains(&utxo_key) {
+                    continue;
+                }
+
                 if output.can_be_unlocked_with(address) {
                     accumulated += output.value;
                     unspent_outputs.push((txid.clone(), *vout));

@@ -66,7 +66,10 @@ impl ParallelMiner {
     /// # 返回
     /// 成功时返回找到的nonce值和尝试次数
     pub fn mine_block(&self, block: &mut Block, difficulty: usize) -> Result<MiningResult> {
-        info!("开始并行挖矿 [难度: {}, 线程数: {}]", difficulty, self.num_threads);
+        info!(
+            "开始并行挖矿 [难度: {}, 线程数: {}]",
+            difficulty, self.num_threads
+        );
 
         let start_time = Instant::now();
         let target = "0".repeat(difficulty);
@@ -85,7 +88,8 @@ impl ParallelMiner {
         // 并行搜索
         pool.install(|| {
             // 创建无限迭代器，每次产生一个chunk的起始nonce
-            (0u64..).step_by(self.chunk_size as usize)
+            (0u64..)
+                .step_by(self.chunk_size as usize)
                 .take_while(|_| !found.load(Ordering::Relaxed))
                 .par_bridge() // 转换为并行迭代器
                 .find_any(|&chunk_start| {
@@ -100,7 +104,7 @@ impl ParallelMiner {
 
                         total_attempts.fetch_add(1, Ordering::Relaxed);
 
-                        if &hash[..difficulty] == target {
+                        if hash[..difficulty] == target {
                             // 找到有效哈希！
                             found.store(true, Ordering::Relaxed);
                             found_nonce.store(nonce, Ordering::Relaxed);
@@ -186,7 +190,12 @@ mod tests {
 
     #[test]
     fn test_parallel_mining() {
-        let transactions = vec![Transaction::new_coinbase("miner_address".to_string(), 50, 0, 0)];
+        let transactions = vec![Transaction::new_coinbase(
+            "miner_address".to_string(),
+            50,
+            0,
+            0,
+        )];
         let mut block = Block::new(1, transactions, "0".to_string());
 
         let miner = ParallelMiner::new(2); // 使用2个线程
@@ -219,7 +228,10 @@ mod tests {
 
         println!("顺序挖矿: {:?}", sequential_time);
         println!("并行挖矿: {:?}", parallel_time);
-        println!("加速比: {:.2}x", sequential_time.as_secs_f64() / parallel_time.as_secs_f64());
+        println!(
+            "加速比: {:.2}x",
+            sequential_time.as_secs_f64() / parallel_time.as_secs_f64()
+        );
 
         // 并行应该更快（但由于随机性，不总是保证）
         // 只验证两者都能找到有效哈希

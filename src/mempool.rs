@@ -18,11 +18,11 @@
 //! - **最长保留**: 72小时
 //! - **替换规则**: 新交易费用必须更高
 
-use crate::transaction::Transaction;
 use crate::error::{BitcoinError, Result};
-use crate::security::SecurityValidator;
 use crate::info;
-use std::collections::{HashMap, HashSet, BTreeMap};
+use crate::security::SecurityValidator;
+use crate::transaction::Transaction;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 内存池条目
@@ -117,9 +117,20 @@ impl Mempool {
         }
     }
 
-    /// 创建默认内存池
-    pub fn default() -> Self {
-        Self::new(300 * 1024 * 1024, 1.0) // 300 MB, 1 sat/byte
+    /// 创建宽松验证的内存池（用于Blockchain集成）
+    ///
+    /// Blockchain自身已做UTXO/签名验证，内存池仅负责排序和双花检测。
+    pub fn new_permissive() -> Self {
+        Self {
+            transactions: HashMap::new(),
+            fee_index: BTreeMap::new(),
+            utxo_index: HashMap::new(),
+            validator: SecurityValidator::permissive(),
+            max_size: 300 * 1024 * 1024,
+            current_size: 0,
+            min_fee_rate: 0.0, // 允许零费率
+            max_age: 72 * 3600,
+        }
     }
 
     /// 添加交易到内存池
@@ -163,7 +174,7 @@ impl Mempool {
         }
 
         // 4. 估算交易大小并计算费率
-        let size = self.estimate_tx_size(&tx);
+        let size = self.estimate_tx_size(&tx).max(1); // prevent division by zero
         let fee_rate = tx.fee as f64 / size as f64;
 
         // 5. 费率检查
@@ -187,7 +198,10 @@ impl Mempool {
 
         // 添加到费率索引
         let fee_key = ordered_float::NotNan::new(fee_rate).unwrap();
-        self.fee_index.entry(fee_key).or_insert_with(HashSet::new).insert(txid.clone());
+        self.fee_index
+            .entry(fee_key)
+            .or_default()
+            .insert(txid.clone());
 
         // 添加到UTXO索引
         for input in &tx.inputs {
@@ -198,7 +212,10 @@ impl Mempool {
         // 添加到交易池
         self.transactions.insert(txid.clone(), entry);
 
-        info!("交易 {} 加入内存池 [费率: {:.2} sat/byte, 大小: {} bytes]", txid, fee_rate, size);
+        info!(
+            "交易 {} 加入内存池 [费率: {:.2} sat/byte, 大小: {} bytes]",
+            txid, fee_rate, size
+        );
 
         Ok(())
     }
@@ -278,7 +295,11 @@ impl Mempool {
             }
         }
 
-        info!("为区块选择 {} 笔交易，总大小 {} bytes", result.len(), total_size);
+        info!(
+            "为区块选择 {} 笔交易，总大小 {} bytes",
+            result.len(),
+            total_size
+        );
         result
     }
 
@@ -333,16 +354,21 @@ impl Mempool {
         }
 
         if freed_size < needed_size {
-            return Err(BitcoinError::Internal(
-                format!("无法腾出足够空间: 需要 {} bytes", needed_size)
-            ));
+            return Err(BitcoinError::Internal(format!(
+                "无法腾出足够空间: 需要 {} bytes",
+                needed_size
+            )));
         }
 
         for txid in &to_remove {
             self.remove_transaction(txid)?;
         }
 
-        info!("淘汰 {} 笔低费率交易，释放 {} bytes", to_remove.len(), freed_size);
+        info!(
+            "淘汰 {} 笔低费率交易，释放 {} bytes",
+            to_remove.len(),
+            freed_size
+        );
         Ok(())
     }
 
@@ -357,14 +383,10 @@ impl Mempool {
     /// 获取内存池统计信息
     pub fn get_stats(&self) -> MempoolStats {
         let tx_count = self.transactions.len();
-        let total_fees: u64 = self.transactions.values()
-            .map(|e| e.transaction.fee)
-            .sum();
+        let total_fees: u64 = self.transactions.values().map(|e| e.transaction.fee).sum();
 
         let avg_fee_rate = if !self.transactions.is_empty() {
-            self.transactions.values()
-                .map(|e| e.fee_rate)
-                .sum::<f64>() / tx_count as f64
+            self.transactions.values().map(|e| e.fee_rate).sum::<f64>() / tx_count as f64
         } else {
             0.0
         };
@@ -410,6 +432,12 @@ pub struct MempoolStats {
 
     /// 最小费率
     pub min_fee_rate: f64,
+}
+
+impl Default for Mempool {
+    fn default() -> Self {
+        Self::new(300 * 1024 * 1024, 1.0) // 300 MB, 1 sat/byte
+    }
 }
 
 #[cfg(test)]
@@ -528,7 +556,7 @@ mod tests {
         // 获取用于打包区块的交易（限制大小）
         let txs = mempool.get_transactions_for_block(1000); // 1KB限制
 
-        assert!(txs.len() > 0);
+        assert!(!txs.is_empty());
         assert!(txs.len() <= 5);
 
         // 验证按费率排序（最高费率的应该优先）

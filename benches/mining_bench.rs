@@ -1,10 +1,7 @@
 //! 挖矿性能基准测试
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use bitcoin_simulation::{
-    blockchain::Blockchain,
-    wallet::Wallet,
-};
+use bitcoin_simulation::{blockchain::Blockchain, wallet::Wallet};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn bench_mining(c: &mut Criterion) {
     let mut group = c.benchmark_group("mining");
@@ -25,7 +22,10 @@ fn bench_mining(c: &mut Criterion) {
                         .unwrap();
                     blockchain.add_transaction(tx).unwrap();
 
-                    black_box(blockchain.mine_pending_transactions(wallet.address).unwrap());
+                    blockchain
+                        .mine_pending_transactions(wallet.address)
+                        .unwrap();
+                    black_box(());
                 });
             },
         );

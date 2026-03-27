@@ -41,10 +41,10 @@
 //! ```
 
 use crate::block::Block;
-use crate::merkle::MerkleTree;
 use crate::error::{BitcoinError, Result};
 use crate::info;
-use serde::{Serialize, Deserialize};
+use crate::merkle::MerkleTree;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// 区块头 (80字节)
@@ -97,7 +97,7 @@ impl BlockHeader {
     /// 验证区块头的工作量证明
     pub fn verify_pow(&self, difficulty: usize) -> bool {
         let target = "0".repeat(difficulty);
-        &self.hash[..difficulty] == target
+        self.hash[..difficulty] == target
     }
 
     /// 计算区块头大小（字节）
@@ -172,7 +172,11 @@ impl SPVClient {
         self.chain_tip = Some(hash);
         self.total_work += 1;
 
-        info!("SPV客户端添加区块头 #{}, 总数: {}", self.headers.len(), self.headers.len());
+        info!(
+            "SPV客户端添加区块头 #{}, 总数: {}",
+            self.headers.len(),
+            self.headers.len()
+        );
 
         Ok(())
     }
@@ -200,11 +204,12 @@ impl SPVClient {
         tx_index: usize,
     ) -> Result<bool> {
         // 1. 获取区块头
-        let header = self.header_index.get(block_hash).ok_or_else(|| {
-            BitcoinError::InvalidBlock {
-                reason: format!("区块头未找到: {}", block_hash),
-            }
-        })?;
+        let header =
+            self.header_index
+                .get(block_hash)
+                .ok_or_else(|| BitcoinError::InvalidBlock {
+                    reason: format!("区块头未找到: {}", block_hash),
+                })?;
 
         // 2. 验证Merkle证明
         let valid = MerkleTree::verify_proof(tx_id, proof, &header.merkle_root, tx_index);

@@ -287,9 +287,12 @@ async function runDemo() {
 
         demoWallets = { alice: walletAlice, bob: walletBob, charlie: walletCharlie };
 
-        // 步骤2: 给Alice发放初始余额
+        // 步骤2: 获取创世地址并给Alice发放初始余额
         setStatus('步骤 2/6: 为Alice发放初始余额...', 'info');
-        await createDemoTransaction('genesis_address', walletAlice.address, 100, 0);
+        const infoResp = await fetch(`${API_BASE}/blockchain/info`);
+        const infoData = await infoResp.json();
+        const genesisAddr = infoData.data.genesis_address;
+        await createDemoTransaction(genesisAddr, walletAlice.address, 100, 0);
         await delay(1000);
 
         // 步骤3: 挖矿

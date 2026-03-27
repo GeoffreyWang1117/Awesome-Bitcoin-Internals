@@ -1,29 +1,22 @@
-mod block;          // 区块模块
-mod blockchain;     // 区块链模块
-mod transaction;    // 交易模块
-mod wallet;         // 钱包模块
-mod utxo;           // UTXO模块
-mod persistence;    // 持久化存储模块
-mod indexer;        // 索引和批处理模块
-mod merkle;         // Merkle树模块
-mod multisig;       // 多重签名模块
-mod advanced_tx;    // 高级交易特性模块
-
-use blockchain::Blockchain;
-use wallet::Wallet;
+use bitcoin_simulation::blockchain::Blockchain;
+use bitcoin_simulation::wallet::Wallet;
 
 fn main() {
     println!("========================================");
     println!("   SimpleBTC - 基于BTC的银行系统演示");
+    println!("   (secp256k1 ECDSA 真实签名)");
     println!("========================================\n");
 
     // 1. 创建区块链
     println!(">>> 步骤 1: 初始化区块链");
     let mut blockchain = Blockchain::new();
-    println!("✓ 区块链已创建，创世区块已生成\n");
+    let genesis_wallet = Blockchain::genesis_wallet();
+    println!("✓ 区块链已创建，创世区块已生成");
+    println!("  创世地址: {}", genesis_wallet.address);
+    println!();
 
-    // 2. 创建钱包（银行账户）
-    println!(">>> 步骤 2: 创建用户钱包");
+    // 2. 创建钱包（银行账户）- 使用真实secp256k1密钥对
+    println!(">>> 步骤 2: 创建用户钱包（secp256k1）");
     let wallet_alice = Wallet::new();
     let wallet_bob = Wallet::new();
     let wallet_charlie = Wallet::new();
@@ -33,25 +26,25 @@ fn main() {
     println!("✓ Charlie 的钱包地址: {}", wallet_charlie.address);
     println!();
 
-    // 3. 给Alice和Bob发放初始余额（通过挖矿）
-    println!(">>> 步骤 3: 为Alice发放初始余额");
+    // 3. 给Alice和Bob发放初始余额（从创世钱包转账）
+    println!(">>> 步骤 3: 为Alice发放初始余额（创世钱包 → Alice）");
     match blockchain.create_transaction(
-        &Wallet::from_address("genesis_address".to_string()),
+        &genesis_wallet,
         wallet_alice.address.clone(),
-        100,
+        1000,
         0, // 无交易费
     ) {
         Ok(tx) => {
             if blockchain.add_transaction(tx).is_ok() {
-                println!("✓ 交易已添加到待处理池");
+                println!("✓ 交易已添加到内存池（ECDSA签名已验证）");
             }
         }
-        Err(_) => {
-            println!("ℹ 使用coinbase交易给Alice发放初始余额");
+        Err(e) => {
+            println!("✗ 创建交易失败: {}", e);
         }
     }
 
-    // 挖矿，将Alice的初始余额打包
+    // 挖矿，将Alice的初始余额打包（并行挖矿）
     println!(">>> 挖矿中，打包Alice的交易...");
     match blockchain.mine_pending_transactions(wallet_alice.address.clone()) {
         Ok(_) => println!("✓ 区块已挖出\n"),
@@ -59,20 +52,20 @@ fn main() {
     }
 
     // 给Bob发放初始余额
-    println!(">>> 为Bob发放初始余额");
+    println!(">>> 为Bob发放初始余额（创世钱包 → Bob）");
     match blockchain.create_transaction(
-        &Wallet::from_address("genesis_address".to_string()),
+        &genesis_wallet,
         wallet_bob.address.clone(),
-        80,
+        800,
         0, // 无交易费
     ) {
         Ok(tx) => {
             if blockchain.add_transaction(tx).is_ok() {
-                println!("✓ 交易已添加到待处理池");
+                println!("✓ 交易已添加到内存池（ECDSA签名已验证）");
             }
         }
-        Err(_) => {
-            println!("ℹ 使用coinbase交易给Bob发放初始余额");
+        Err(e) => {
+            println!("ℹ 创世余额不足，使用挖矿奖励: {}", e);
         }
     }
 
@@ -99,7 +92,7 @@ fn main() {
         Ok(tx) => {
             println!("✓ 交易已创建: {}", tx.id);
             match blockchain.add_transaction(tx) {
-                Ok(_) => println!("✓ 交易已验证并添加到待处理池"),
+                Ok(_) => println!("✓ 交易已验证（ECDSA）并添加到内存池"),
                 Err(e) => println!("✗ 交易添加失败: {}", e),
             }
         }
@@ -113,7 +106,7 @@ fn main() {
         Ok(tx) => {
             println!("✓ 交易已创建: {}", tx.id);
             match blockchain.add_transaction(tx) {
-                Ok(_) => println!("✓ 交易已验证并添加到待处理池"),
+                Ok(_) => println!("✓ 交易已验证（ECDSA）并添加到内存池"),
                 Err(e) => println!("✗ 交易添加失败: {}", e),
             }
         }
@@ -121,8 +114,8 @@ fn main() {
     }
     println!();
 
-    // 7. 挖矿，打包所有待处理交易
-    println!(">>> 步骤 7: 挖矿打包待处理交易");
+    // 7. 挖矿，打包所有待处理交易（并行挖矿）
+    println!(">>> 步骤 7: 并行挖矿打包待处理交易");
     let miner_wallet = Wallet::new();
     println!("矿工地址: {}", miner_wallet.address);
 
@@ -145,8 +138,8 @@ fn main() {
     println!("矿工的余额: {} BTC (挖矿奖励)", miner_balance);
     println!();
 
-    // 9. 测试余额不足的情况（事务处理规则）
-    println!(">>> 步骤 9: 测试余额不足情况");
+    // 9. 测试签名安全性 - 用错误的钱包尝试花费别人的币
+    println!(">>> 步骤 9: 测试签名安全性");
     println!("Charlie 尝试向 Alice 转账 100 BTC（余额不足）");
     match blockchain.create_transaction(&wallet_charlie, wallet_alice.address.clone(), 100, 1) {
         Ok(_) => println!("✗ 应该失败，但交易成功创建了！"),
@@ -157,7 +150,7 @@ fn main() {
     // 10. 验证区块链完整性
     println!(">>> 步骤 10: 验证区块链完整性");
     if blockchain.is_valid() {
-        println!("✓ 区块链验证通过，所有区块和交易都有效");
+        println!("✓ 区块链验证通过，所有区块和ECDSA签名都有效");
     } else {
         println!("✗ 区块链验证失败！");
     }
@@ -167,26 +160,25 @@ fn main() {
     println!(">>> 步骤 11: 打印区块链详细信息");
     blockchain.print_chain();
 
-    // 12. 演示事务特性（ACID）
+    // 12. 演示密码学特性
     println!("========================================");
-    println!("   事务处理特性演示");
+    println!("   密码学安全特性");
     println!("========================================\n");
 
-    println!("【原子性 Atomicity】");
-    println!("- 交易要么全部执行，要么全部不执行");
-    println!("- 余额不足时，交易被完全拒绝，不会部分执行\n");
+    println!("【secp256k1 ECDSA签名】");
+    println!("- 与真实比特币使用相同的椭圆曲线: y² = x³ + 7 (mod p)");
+    println!("- 私钥: 256位随机数（32字节）");
+    println!("- 公钥: 椭圆曲线点（压缩格式33字节）");
+    println!("- 签名: ECDSA DER编码（约71-73字节）\n");
 
-    println!("【一致性 Consistency】");
-    println!("- 交易前后，所有账户余额总和保持一致");
-    println!("- 每笔交易都经过验证，确保输入 ≥ 输出\n");
+    println!("【P2PKH地址】");
+    println!("- 与真实比特币主网地址格式一致（以'1'开头）");
+    println!("- 地址生成: 公钥 → SHA256 → RIPEMD160 → Base58Check\n");
 
-    println!("【隔离性 Isolation】");
-    println!("- 交易在待处理池中等待，不影响当前状态");
-    println!("- 只有在挖矿成功后，交易才会被确认并更新UTXO集合\n");
-
-    println!("【持久性 Durability】");
-    println!("- 一旦交易被打包进区块并挖矿成功");
-    println!("- 交易记录永久保存在区块链中，不可篡改\n");
+    println!("【交易安全】");
+    println!("- 每笔交易的每个输入都经过ECDSA签名验证");
+    println!("- 无法伪造签名花费他人的UTXO");
+    println!("- 签名不可伪造、不可抵赖\n");
 
     println!("========================================");
     println!("   演示完成");

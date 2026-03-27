@@ -2,11 +2,7 @@
 //!
 //! 提供测试中常用的辅助函数和工具
 
-use bitcoin_simulation::{
-    blockchain::Blockchain,
-    wallet::Wallet,
-    config::Config,
-};
+use bitcoin_simulation::{blockchain::Blockchain, config::Config, wallet::Wallet};
 
 /// 创建测试用的区块链实例
 pub fn create_test_blockchain() -> Blockchain {
@@ -29,7 +25,7 @@ pub fn setup_wallet_balance(
     wallet: &Wallet,
     amount: u64,
 ) -> Result<(), String> {
-    let genesis = Wallet::from_address("genesis".to_string());
+    let genesis = Blockchain::genesis_wallet();
     let tx = blockchain.create_transaction(&genesis, wallet.address.clone(), amount, 0)?;
     blockchain.add_transaction(tx)?;
     blockchain.mine_pending_transactions(wallet.address.clone())?;
@@ -52,6 +48,7 @@ pub fn assert_balance(blockchain: &Blockchain, address: &str, expected: u64) {
 }
 
 /// 创建测试配置
+#[allow(dead_code)]
 pub fn test_config() -> Config {
     Config::test()
 }
@@ -84,6 +81,7 @@ mod tests {
         assert!(result.is_ok());
 
         let balance = blockchain.get_balance(&wallet.address);
-        assert_eq!(balance, 10000);
+        // wallet gets 10000 from genesis + 50 mining reward (wallet is the miner)
+        assert_eq!(balance, 10000 + blockchain.mining_reward);
     }
 }

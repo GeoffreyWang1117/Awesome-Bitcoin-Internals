@@ -1,5 +1,4 @@
 use crate::transaction::Transaction;
-use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 /// Replace-By-Fee (RBF) 管理器
@@ -94,10 +93,7 @@ impl RBFManager {
         let min_increase = old_size; // 简化：至少增加size数量的satoshi
 
         if fee_increase < min_increase {
-            return Err(format!(
-                "手续费增量不足，最少需要增加{}",
-                min_increase
-            ));
+            return Err(format!("手续费增量不足，最少需要增加{}", min_increase));
         }
 
         Ok(())
@@ -295,10 +291,10 @@ impl TxPriorityCalculator {
     /// 推荐手续费（基于当前内存池状态）
     pub fn recommend_fee(tx_size: usize, urgency: FeeUrgency) -> u64 {
         let sat_per_byte = match urgency {
-            FeeUrgency::Low => 1.0,      // 低优先级：1 sat/byte
-            FeeUrgency::Medium => 5.0,   // 中优先级：5 sat/byte
-            FeeUrgency::High => 20.0,    // 高优先级：20 sat/byte
-            FeeUrgency::Urgent => 50.0,  // 紧急：50 sat/byte
+            FeeUrgency::Low => 1.0,     // 低优先级：1 sat/byte
+            FeeUrgency::Medium => 5.0,  // 中优先级：5 sat/byte
+            FeeUrgency::High => 20.0,   // 高优先级：20 sat/byte
+            FeeUrgency::Urgent => 50.0, // 紧急：50 sat/byte
         };
 
         (tx_size as f64 * sat_per_byte) as u64
@@ -308,10 +304,10 @@ impl TxPriorityCalculator {
 /// 手续费紧急程度
 #[derive(Debug, Clone, Copy)]
 pub enum FeeUrgency {
-    Low,      // 低优先级（几小时内确认）
-    Medium,   // 中优先级（30-60分钟）
-    High,     // 高优先级（10-20分钟）
-    Urgent,   // 紧急（下一个区块）
+    Low,    // 低优先级（几小时内确认）
+    Medium, // 中优先级（30-60分钟）
+    High,   // 高优先级（10-20分钟）
+    Urgent, // 紧急（下一个区块）
 }
 
 #[cfg(test)]

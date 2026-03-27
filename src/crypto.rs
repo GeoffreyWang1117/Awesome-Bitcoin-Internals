@@ -2,13 +2,11 @@
 //!
 //! 使用secp256k1椭圆曲线实现真正的ECDSA签名，完全兼容比特币标准。
 
-use secp256k1::{
-    ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey,
-};
-use bitcoin_hashes::{sha256, sha256d, Hash};
-use ripemd::{Ripemd160, Digest as RipemdDigest};
-use hex;
 use crate::error::{BitcoinError, Result};
+use bitcoin_hashes::{sha256, sha256d, Hash};
+use hex;
+use ripemd::{Digest as RipemdDigest, Ripemd160};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 
 /// 真实的比特币钱包（使用ECDSA）
@@ -27,6 +25,12 @@ pub struct CryptoWallet {
 
     /// Bech32地址（原生隔离见证）
     pub bech32_address: String,
+}
+
+impl Default for CryptoWallet {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CryptoWallet {
@@ -73,13 +77,12 @@ impl CryptoWallet {
 
     /// 从私钥十六进制字符串创建钱包
     pub fn from_private_key_hex(hex_str: &str) -> Result<Self> {
-        let bytes = hex::decode(hex_str)
-            .map_err(|e| BitcoinError::PrivateKeyError {
-                reason: format!("无效的十六进制私钥: {}", e),
-            })?;
+        let bytes = hex::decode(hex_str).map_err(|e| BitcoinError::PrivateKeyError {
+            reason: format!("无效的十六进制私钥: {}", e),
+        })?;
 
-        let secret_key = SecretKey::from_slice(&bytes)
-            .map_err(|e| BitcoinError::PrivateKeyError {
+        let secret_key =
+            SecretKey::from_slice(&bytes).map_err(|e| BitcoinError::PrivateKeyError {
                 reason: format!("无效的私钥: {}", e),
             })?;
 
@@ -188,7 +191,8 @@ impl CryptoWallet {
 
     /// 从WIF格式导入私钥
     pub fn import_from_wif(wif: &str) -> Result<Self> {
-        let decoded = bs58::decode(wif).into_vec()
+        let decoded = bs58::decode(wif)
+            .into_vec()
             .map_err(|e| BitcoinError::PrivateKeyError {
                 reason: format!("无效的WIF格式: {}", e),
             })?;
@@ -201,15 +205,15 @@ impl CryptoWallet {
 
         // 验证校验和
         let checksum_verify = sha256d::Hash::hash(&decoded[0..33]);
-        if &decoded[33..37] != &checksum_verify[0..4] {
+        if decoded[33..37] != checksum_verify[0..4] {
             return Err(BitcoinError::PrivateKeyError {
                 reason: "WIF校验和验证失败".to_string(),
             });
         }
 
         // 提取私钥
-        let secret_key = SecretKey::from_slice(&decoded[1..33])
-            .map_err(|e| BitcoinError::PrivateKeyError {
+        let secret_key =
+            SecretKey::from_slice(&decoded[1..33]).map_err(|e| BitcoinError::PrivateKeyError {
                 reason: format!("无效的私钥: {}", e),
             })?;
 
@@ -256,7 +260,7 @@ fn convert_bits(data: &[u8], from_bits: usize, to_bits: usize, pad: bool) -> Vec
 
 mod secret_key_serde {
     use super::*;
-    use serde::{Serializer, Deserializer, Deserialize};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S>(key: &SecretKey, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -277,7 +281,7 @@ mod secret_key_serde {
 
 mod public_key_serde {
     use super::*;
-    use serde::{Serializer, Deserializer, Deserialize};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S>(key: &PublicKey, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -318,11 +322,19 @@ mod tests {
         let signature = wallet.sign(message);
 
         // 验证
-        assert!(CryptoWallet::verify(message, &signature, &wallet.public_key));
+        assert!(CryptoWallet::verify(
+            message,
+            &signature,
+            &wallet.public_key
+        ));
 
         // 验证错误的消息应该失败
         let wrong_message = b"Wrong message";
-        assert!(!CryptoWallet::verify(wrong_message, &signature, &wallet.public_key));
+        assert!(!CryptoWallet::verify(
+            wrong_message,
+            &signature,
+            &wallet.public_key
+        ));
     }
 
     #[test]

@@ -1,14 +1,14 @@
-/// 案例3: 时间锁定期存款
-///
-/// 场景：用户创建定期存款，锁定期满后才能提取
-/// 使用时间锁实现强制储蓄
-///
-/// 运行: cargo run --example timelock_savings
+//! 案例3: 时间锁定期存款
+//!
+//! 场景：用户创建定期存款，锁定期满后才能提取
+//! 使用时间锁实现强制储蓄
+//!
+//! 运行: cargo run --example timelock_savings
 
 use bitcoin_simulation::{
+    advanced_tx::{AdvancedTxBuilder, TimeLock},
     blockchain::Blockchain,
     wallet::Wallet,
-    advanced_tx::{TimeLock, AdvancedTxBuilder},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -32,13 +32,15 @@ fn main() {
     // 给用户发放初始资金
     println!(">>> 第2步: 用户获得初始资金");
     if let Ok(tx) = blockchain.create_transaction(
-        &Wallet::from_address("genesis_address".to_string()),
+        &Blockchain::genesis_wallet(),
         user_wallet.address.clone(),
         200000, // 20万 satoshi
         0,
     ) {
         blockchain.add_transaction(tx).ok();
-        blockchain.mine_pending_transactions(user_wallet.address.clone()).ok();
+        blockchain
+            .mine_pending_transactions(user_wallet.address.clone())
+            .ok();
         println!("✓ 用户获得 200,000 satoshi\n");
     }
 
@@ -97,22 +99,20 @@ fn main() {
     println!(">>> 用户存入3个月定期 (50,000 satoshi)");
 
     // 创建带时间锁的交易
-    let tx_builder = AdvancedTxBuilder::new()
-        .with_timelock(timelock_3m.clone());
+    let tx_builder = AdvancedTxBuilder::new().with_timelock(timelock_3m.clone());
 
     println!("✓ 交易已创建");
     println!("✓ 时间锁已设置: 序列号 = {}", tx_builder.get_sequence());
     println!("✓ 资金将在 {} 后可用\n", format_duration(three_months));
 
     // 模拟存款
-    if let Ok(tx) = blockchain.create_transaction(
-        &user_wallet,
-        savings_wallet.address.clone(),
-        50000,
-        100,
-    ) {
+    if let Ok(tx) =
+        blockchain.create_transaction(&user_wallet, savings_wallet.address.clone(), 50000, 100)
+    {
         blockchain.add_transaction(tx).ok();
-        blockchain.mine_pending_transactions(user_wallet.address.clone()).ok();
+        blockchain
+            .mine_pending_transactions(user_wallet.address.clone())
+            .ok();
         println!("✓ 存款成功！\n");
     }
 

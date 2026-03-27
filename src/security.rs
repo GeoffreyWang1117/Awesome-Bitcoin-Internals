@@ -13,9 +13,9 @@
 //! 3. **最小费率**：至少1 sat/byte（防止网络拥堵）
 //! 4. **输出粉尘**：最小输出546 satoshi（防止UTXO膨胀）
 
-use crate::transaction::Transaction;
 use crate::error::{BitcoinError, Result};
 use crate::info;
+use crate::transaction::Transaction;
 use std::collections::HashSet;
 
 /// 安全验证器
@@ -40,20 +40,20 @@ impl SecurityValidator {
     /// 创建默认验证器（比特币标准）
     pub fn new() -> Self {
         Self {
-            max_tx_size: 100_000,       // 100 KB（比特币标准交易限制）
-            min_fee_rate: 1,             // 1 sat/byte（最低费率）
-            min_output_value: 546,       // 546 satoshi（粉尘阈值）
-            max_inputs: 10_000,          // 最大输入数
-            max_outputs: 10_000,         // 最大输出数
+            max_tx_size: 100_000,  // 100 KB（比特币标准交易限制）
+            min_fee_rate: 1,       // 1 sat/byte（最低费率）
+            min_output_value: 546, // 546 satoshi（粉尘阈值）
+            max_inputs: 10_000,    // 最大输入数
+            max_outputs: 10_000,   // 最大输出数
         }
     }
 
     /// 创建宽松验证器（用于测试）
     pub fn permissive() -> Self {
         Self {
-            max_tx_size: 1_000_000,      // 1 MB
-            min_fee_rate: 0,             // 允许零费率
-            min_output_value: 1,         // 允许1 satoshi
+            max_tx_size: 1_000_000, // 1 MB
+            min_fee_rate: 0,        // 允许零费率
+            min_output_value: 1,    // 允许1 satoshi
             max_inputs: 100_000,
             max_outputs: 100_000,
         }

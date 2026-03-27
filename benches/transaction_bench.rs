@@ -1,10 +1,7 @@
 //! 交易处理性能基准测试
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use bitcoin_simulation::{
-    blockchain::Blockchain,
-    wallet::Wallet,
-};
+use bitcoin_simulation::{blockchain::Blockchain, wallet::Wallet};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn bench_transaction_creation(c: &mut Criterion) {
     c.benchmark_group("transaction")
@@ -13,7 +10,7 @@ fn bench_transaction_creation(c: &mut Criterion) {
             let wallet = Wallet::new();
 
             // 给钱包初始余额
-            let genesis = Wallet::from_address("genesis".to_string());
+            let genesis = Blockchain::genesis_wallet();
             let init_tx = blockchain
                 .create_transaction(&genesis, wallet.address.clone(), 100000, 0)
                 .unwrap();
@@ -40,7 +37,7 @@ fn bench_transaction_verification(c: &mut Criterion) {
     let mut blockchain = Blockchain::new();
     let wallet = Wallet::new();
 
-    let genesis = Wallet::from_address("genesis".to_string());
+    let genesis = Blockchain::genesis_wallet();
     let init_tx = blockchain
         .create_transaction(&genesis, wallet.address.clone(), 100000, 0)
         .unwrap();
@@ -55,8 +52,8 @@ fn bench_transaction_verification(c: &mut Criterion) {
 
     group.bench_function("verify_transaction", |b| {
         b.iter(|| {
-            // 验证交易签名和UTXO
-            black_box(tx.verify_signature(&wallet.public_key));
+            // 验证交易ECDSA签名
+            black_box(tx.verify());
         });
     });
 
@@ -76,7 +73,7 @@ fn bench_batch_transactions(c: &mut Criterion) {
                     let wallet = Wallet::new();
 
                     // 初始化余额
-                    let genesis = Wallet::from_address("genesis".to_string());
+                    let genesis = Blockchain::genesis_wallet();
                     let init_tx = blockchain
                         .create_transaction(&genesis, wallet.address.clone(), 1000000, 0)
                         .unwrap();
@@ -88,14 +85,10 @@ fn bench_batch_transactions(c: &mut Criterion) {
                     // 创建并添加多笔交易
                     for i in 0..size {
                         let tx = blockchain
-                            .create_transaction(
-                                &wallet,
-                                format!("address_{}", i),
-                                100,
-                                1,
-                            )
+                            .create_transaction(&wallet, format!("address_{}", i), 100, 1)
                             .unwrap();
-                        black_box(blockchain.add_transaction(tx).unwrap());
+                        blockchain.add_transaction(tx).unwrap();
+                        black_box(());
                     }
                 });
             },
@@ -110,7 +103,7 @@ fn bench_balance_query(c: &mut Criterion) {
     let mut blockchain = Blockchain::new();
     let wallet = Wallet::new();
 
-    let genesis = Wallet::from_address("genesis".to_string());
+    let genesis = Blockchain::genesis_wallet();
     for i in 0..100 {
         let tx = blockchain
             .create_transaction(&genesis, wallet.address.clone(), 1000, 0)
@@ -123,11 +116,12 @@ fn bench_balance_query(c: &mut Criterion) {
         }
     }
 
-    c.benchmark_group("query").bench_function("get_balance", |b| {
-        b.iter(|| {
-            black_box(blockchain.get_balance(&wallet.address));
+    c.benchmark_group("query")
+        .bench_function("get_balance", |b| {
+            b.iter(|| {
+                black_box(blockchain.get_balance(&wallet.address));
+            });
         });
-    });
 }
 
 criterion_group!(

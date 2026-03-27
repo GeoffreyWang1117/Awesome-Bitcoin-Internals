@@ -37,7 +37,7 @@ impl TransactionIndexer {
             for output in &tx.outputs {
                 self.address_to_txs
                     .entry(output.pub_key_hash.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(tx.id.clone());
             }
         }

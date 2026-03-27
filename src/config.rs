@@ -2,12 +2,12 @@
 //!
 //! 本模块提供SimpleBTC的所有配置项，支持从文件、环境变量和代码中加载配置。
 
+use crate::error::{BitcoinError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use crate::error::{BitcoinError, Result};
 
 /// SimpleBTC完整配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// 区块链配置
     pub blockchain: BlockchainConfig,
@@ -167,46 +167,76 @@ pub struct LoggingConfig {
 
 // ========== 默认值函数 ==========
 
-fn default_difficulty() -> usize { 4 }
-fn default_mining_reward() -> u64 { 5000 }
-fn default_min_tx_fee() -> u64 { 1 }
-fn default_max_txs_per_block() -> usize { 100 }
-fn default_max_block_size() -> usize { 1_000_000 } // 1MB
-fn default_min_fee_rate() -> u64 { 1 } // 1 sat/byte
+fn default_difficulty() -> usize {
+    4
+}
+fn default_mining_reward() -> u64 {
+    5000
+}
+fn default_min_tx_fee() -> u64 {
+    1
+}
+fn default_max_txs_per_block() -> usize {
+    100
+}
+fn default_max_block_size() -> usize {
+    1_000_000
+} // 1MB
+fn default_min_fee_rate() -> u64 {
+    1
+} // 1 sat/byte
 
-fn default_p2p_port() -> u16 { 8333 }
-fn default_max_peers() -> usize { 8 }
-fn default_connection_timeout() -> u64 { 30 }
+fn default_p2p_port() -> u16 {
+    8333
+}
+fn default_max_peers() -> usize {
+    8
+}
+fn default_connection_timeout() -> u64 {
+    30
+}
 
-fn default_data_dir() -> String { "./data".to_string() }
-fn default_blockchain_file() -> String { "blockchain.json".to_string() }
-fn default_wallet_dir() -> String { "wallets".to_string() }
-fn default_backup_interval() -> u64 { 3600 } // 1小时
+fn default_data_dir() -> String {
+    "./data".to_string()
+}
+fn default_blockchain_file() -> String {
+    "blockchain.json".to_string()
+}
+fn default_wallet_dir() -> String {
+    "wallets".to_string()
+}
+fn default_backup_interval() -> u64 {
+    3600
+} // 1小时
 
-fn default_api_host() -> String { "127.0.0.1".to_string() }
-fn default_api_port() -> u16 { 3000 }
-fn default_api_timeout() -> u64 { 30 }
-fn default_rate_limit() -> usize { 100 }
+fn default_api_host() -> String {
+    "127.0.0.1".to_string()
+}
+fn default_api_port() -> u16 {
+    3000
+}
+fn default_api_timeout() -> u64 {
+    30
+}
+fn default_rate_limit() -> usize {
+    100
+}
 
-fn default_log_level() -> String { "info".to_string() }
-fn default_log_format() -> String { "pretty".to_string() }
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_log_format() -> String {
+    "pretty".to_string()
+}
 
-fn default_true() -> bool { true }
-fn default_false() -> bool { false }
+fn default_true() -> bool {
+    true
+}
+fn default_false() -> bool {
+    false
+}
 
 // ========== 实现 ==========
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            blockchain: BlockchainConfig::default(),
-            network: NetworkConfig::default(),
-            storage: StorageConfig::default(),
-            api: ApiConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
 
 impl Default for BlockchainConfig {
     fn default() -> Self {
@@ -285,15 +315,14 @@ impl Config {
     /// # Ok::<(), bitcoin_simulation::error::BitcoinError>(())
     /// ```
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
-        let content = std::fs::read_to_string(path.as_ref())
-            .map_err(|e| BitcoinError::ConfigError {
+        let content =
+            std::fs::read_to_string(path.as_ref()).map_err(|e| BitcoinError::ConfigError {
                 reason: format!("读取配置文件失败: {}", e),
             })?;
 
-        let config: Config = toml::from_str(&content)
-            .map_err(|e| BitcoinError::ConfigError {
-                reason: format!("解析配置文件失败: {}", e),
-            })?;
+        let config: Config = toml::from_str(&content).map_err(|e| BitcoinError::ConfigError {
+            reason: format!("解析配置文件失败: {}", e),
+        })?;
 
         // 验证配置
         config.validate()?;
@@ -313,15 +342,13 @@ impl Config {
     /// # Ok::<(), bitcoin_simulation::error::BitcoinError>(())
     /// ```
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| BitcoinError::ConfigError {
-                reason: format!("序列化配置失败: {}", e),
-            })?;
+        let content = toml::to_string_pretty(self).map_err(|e| BitcoinError::ConfigError {
+            reason: format!("序列化配置失败: {}", e),
+        })?;
 
-        std::fs::write(path.as_ref(), content)
-            .map_err(|e| BitcoinError::ConfigError {
-                reason: format!("写入配置文件失败: {}", e),
-            })?;
+        std::fs::write(path.as_ref(), content).map_err(|e| BitcoinError::ConfigError {
+            reason: format!("写入配置文件失败: {}", e),
+        })?;
 
         Ok(())
     }
@@ -331,7 +358,10 @@ impl Config {
         // 验证难度
         if self.blockchain.difficulty == 0 || self.blockchain.difficulty > 10 {
             return Err(BitcoinError::ConfigError {
-                reason: format!("挖矿难度必须在1-10之间，当前值: {}", self.blockchain.difficulty),
+                reason: format!(
+                    "挖矿难度必须在1-10之间，当前值: {}",
+                    self.blockchain.difficulty
+                ),
             });
         }
 
@@ -420,7 +450,6 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -466,7 +495,10 @@ mod tests {
         let loaded_config = Config::from_file(&config_path)?;
 
         // 验证
-        assert_eq!(original_config.blockchain.difficulty, loaded_config.blockchain.difficulty);
+        assert_eq!(
+            original_config.blockchain.difficulty,
+            loaded_config.blockchain.difficulty
+        );
         assert_eq!(original_config.api.port, loaded_config.api.port);
 
         Ok(())

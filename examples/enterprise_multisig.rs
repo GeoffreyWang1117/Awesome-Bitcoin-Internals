@@ -1,14 +1,14 @@
-/// 案例1: 企业多签钱包
-///
-/// 场景：一家公司需要CEO和CFO双签才能转账
-/// 使用2-of-2多重签名确保资金安全
-///
-/// 运行: cargo run --example enterprise_multisig
+//! 案例1: 企业多签钱包
+//!
+//! 场景：一家公司需要CEO和CFO双签才能转账
+//! 使用2-of-2多重签名确保资金安全
+//!
+//! 运行: cargo run --example enterprise_multisig
 
 use bitcoin_simulation::{
     blockchain::Blockchain,
-    wallet::Wallet,
     multisig::{MultiSigAddress, MultiSigTxBuilder},
+    wallet::Wallet,
 };
 
 fn main() {
@@ -39,23 +39,27 @@ fn main() {
         cto_wallet.public_key.clone(),
     ];
 
-    let company_multisig = MultiSigAddress::new(2, public_keys)
-        .expect("创建多签地址失败");
+    let company_multisig = MultiSigAddress::new(2, public_keys).expect("创建多签地址失败");
 
     println!("公司多签地址: {}", company_multisig.address);
-    println!("需要签名数: {}/{}", company_multisig.required_sigs, company_multisig.total_keys);
+    println!(
+        "需要签名数: {}/{}",
+        company_multisig.required_sigs, company_multisig.total_keys
+    );
     println!();
 
     // 给公司账户发放初始资金
     println!(">>> 第3步: 为公司账户注资");
     if let Ok(tx) = blockchain.create_transaction(
-        &Wallet::from_address("genesis_address".to_string()),
+        &Blockchain::genesis_wallet(),
         company_multisig.address.clone(),
         1000000, // 100万 satoshi
         0,
     ) {
         blockchain.add_transaction(tx).ok();
-        blockchain.mine_pending_transactions(ceo_wallet.address.clone()).ok();
+        blockchain
+            .mine_pending_transactions(ceo_wallet.address.clone())
+            .ok();
         println!("✓ 公司账户已注资 1,000,000 satoshi\n");
     }
 
@@ -77,11 +81,15 @@ fn main() {
 
     // CEO签名
     println!("✓ CEO已签名");
-    multisig_builder.add_signature(&ceo_wallet, "payment_to_supplier").ok();
+    multisig_builder
+        .add_signature(&ceo_wallet, "payment_to_supplier")
+        .ok();
 
     // CFO签名
     println!("✓ CFO已签名");
-    multisig_builder.add_signature(&cfo_wallet, "payment_to_supplier").ok();
+    multisig_builder
+        .add_signature(&cfo_wallet, "payment_to_supplier")
+        .ok();
 
     if multisig_builder.is_complete() {
         println!("\n✓ 已收集到足够的签名 (2/3)");

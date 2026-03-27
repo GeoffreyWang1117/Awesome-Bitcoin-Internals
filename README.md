@@ -9,7 +9,7 @@
 [![Awesome](https://awesome.re/badge-flat2.svg)](https://awesome.re)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange?logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![CI](https://github.com/GeoffreyWang1117/SimpleBTC/actions/workflows/ci.yml/badge.svg)](https://github.com/GeoffreyWang1117/SimpleBTC/actions)
+[![CI](https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals/actions/workflows/ci.yml/badge.svg)](https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals/actions)
 [![Tests](https://img.shields.io/badge/tests-101%20passing-brightgreen)]()
 
 [Learning Path](#-learning-path) | [Resources](#-resources) | [Hands-on Implementation](#-hands-on-simplebtc) | [Quick Start](#-quick-start) | [中文](#中文说明)
@@ -220,7 +220,7 @@ examples/
 ## Quick Start
 
 ```bash
-git clone https://github.com/GeoffreyWang1117/SimpleBTC.git
+git clone https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals.git
 cd SimpleBTC
 cargo run --bin btc-server --release
 ```
@@ -307,7 +307,7 @@ See [CONTRIBUTING](./docs/src/appendix/contributing.md) for guidelines.
 ### 快速开始
 
 ```bash
-git clone https://github.com/GeoffreyWang1117/SimpleBTC.git
+git clone https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals.git
 cd SimpleBTC
 cargo run --bin btc-server --release
 # 打开浏览器访问 http://localhost:3000

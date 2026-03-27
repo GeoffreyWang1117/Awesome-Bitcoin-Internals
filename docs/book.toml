@@ -11,8 +11,8 @@ build-dir = "book"
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "navy"
-git-repository-url = "https://github.com/GeoffreyWang1117/SimpleBTC"
-edit-url-template = "https://github.com/GeoffreyWang1117/SimpleBTC/edit/main/docs/{path}"
+git-repository-url = "https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals"
+edit-url-template = "https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals/edit/main/docs/{path}"
 
 [output.html.fold]
 enable = true

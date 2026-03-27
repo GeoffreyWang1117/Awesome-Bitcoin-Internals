@@ -25,8 +25,54 @@ jobs:
         with:
           mdbook-version: 'latest'
 
-      - name: Build documentation
+      - name: Build Chinese docs
         run: cd docs && mdbook build
+
+      - name: Build English docs
+        run: |
+          cd docs
+          cp book.toml book-zh.toml
+          cp book-en.toml book.toml
+          mdbook build
+          cp book-zh.toml book.toml
+
+      - name: Merge into single site
+        run: |
+          mkdir -p docs/book/en
+          cp -r docs/book-en/* docs/book/en/
+          # Create a landing page with language selector
+          cat > docs/book/index.html << 'LANDING'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Awesome Bitcoin Internals — Documentation</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #e0e0e0; }
+              .container { text-align: center; }
+              h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+              p { color: #aaa; margin-bottom: 2rem; font-size: 1.1rem; }
+              .links { display: flex; gap: 2rem; justify-content: center; }
+              a { display: inline-block; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-size: 1.2rem; font-weight: 600; transition: transform 0.2s; }
+              a:hover { transform: translateY(-2px); }
+              .zh { background: #f7931a; color: #fff; }
+              .en { background: #4a90d9; color: #fff; }
+              .subtitle { font-size: 0.95rem; color: #888; margin-top: 2rem; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Awesome Bitcoin Internals</h1>
+              <p>Learn Bitcoin by building it — complete documentation</p>
+              <div class="links">
+                <a href="./introduction/index.html" class="zh">中文文档</a>
+                <a href="./en/introduction/index.html" class="en">English Docs</a>
+              </div>
+              <p class="subtitle">32 chapters &middot; 8,000+ lines &middot; API reference &middot; practical examples</p>
+            </div>
+          </body>
+          </html>
+          LANDING
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -1,0 +1,24 @@
+[book]
+title = "Awesome Bitcoin Internals — Documentation"
+authors = ["Geoffrey Wang"]
+language = "en"
+src = "en"
+
+[build]
+build-dir = "book-en"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals"
+edit-url-template = "https://github.com/GeoffreyWang1117/Awesome-Bitcoin-Internals/edit/main/docs/{path}"
+
+[output.html.fold]
+enable = true
+level = 0
+
+[output.html.search]
+enable = true
+
+[output.html.playground]
+editable = true
